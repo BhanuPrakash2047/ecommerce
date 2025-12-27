@@ -27,7 +27,8 @@ public class Notification {
     private String relatedEntityType;
     private Long relatedEntityId;
 
-    private Boolean read = false;
+    @Column(name = "is_read")
+    private Boolean isRead = false;
 
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
