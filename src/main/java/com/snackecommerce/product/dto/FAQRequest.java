@@ -19,6 +19,5 @@ public class FAQRequest {
     @NotBlank(message = "Answer is required")
     @Size(min = 10, max = 2000, message = "Answer must be 10-2000 characters")
     private String answer;
-
     private Integer displayOrder;
 }
