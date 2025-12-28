@@ -25,6 +25,10 @@ public class Product {
 
     private Boolean active = true;
 
+    private Boolean isEligibleForCoupon = true;  // Controls if product is eligible for coupon systems
+
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    // No ORM mappings - manual deletion handled in service layer
 }

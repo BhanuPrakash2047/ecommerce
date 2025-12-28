@@ -1,6 +1,5 @@
 package com.snackecommerce.product.entity;
 
-import com.snackecommerce.product.enums.CouponType;
 import com.snackecommerce.product.enums.DiscountType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -31,10 +30,14 @@ public class Coupon {
 
     private Integer totalUsageLimit;
 
+    @Builder.Default
     private Integer usedCount = 0;
 
+    @Builder.Default
     private Boolean active = true;
 
     private LocalDateTime validFrom;
     private LocalDateTime validTill;
+
+    // No ORM mappings - manual deletion handled in service layer
 }

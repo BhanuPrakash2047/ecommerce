@@ -1,6 +1,5 @@
 package com.snackecommerce.product.entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,7 +9,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "product_coupons",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"productId", "couponId"}
+                columnNames = {"product_id", "coupon_id"}
         )
 )
 @Getter @Setter
@@ -21,7 +20,15 @@ public class ProductCoupon {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long productId;
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
-    private Long couponId;
+    @ManyToOne
+    @JoinColumn(name = "coupon_id", nullable = false)
+    private Coupon coupon;
+
+    @Builder.Default
+    @Column(updatable = false)
+    private LocalDateTime linkedAt = LocalDateTime.now();
 }
