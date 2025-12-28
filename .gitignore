@@ -33,3 +33,7 @@ build/
 ### VS Code ###
 .vscode/
 .env
+
+# Application Properties (contains secrets - never commit)
+src/main/resources/application.properties
+!src/main/resources/application.properties.example
