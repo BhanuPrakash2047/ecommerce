@@ -21,6 +21,8 @@ public class Product {
 
     private Double price;
 
+    private Double originalPrice;
+
     private Integer stockQuantity;
 
     private Boolean active = true;
