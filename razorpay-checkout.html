@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Payment Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .response {
+            background: #e8f5e9;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Razorpay Payment Integration</h1>
+        <p>This file demonstrates how to call the backend endpoints for Razorpay payment integration.</p>
+
+        <!-- Step 1: Validate Checkout -->
+        <div class="section">
+            <h2>Step 1: Validate Checkout</h2>
+            <p>Call <code>GET /api/cart/validateCheckout</code> to check if cart is ready for checkout</p>
+            <button onclick="validateCheckout()">Validate Checkout</button>
+            <div id="validateResponse" class="response" style="display:none;"></div>
+        </div>
+
+        <!-- Step 2: Confirm Checkout & Create Order -->
+        <div class="section">
+            <h2>Step 2: Confirm Checkout & Create Order</h2>
+            <p>Call <code>POST /api/cart/checkout/confirm</code> to create order and get Razorpay order ID</p>
+            <input type="email" id="email" placeholder="Enter email" value="user@example.com">
+            <input type="tel" id="phone" placeholder="Enter phone" value="9876543210">
+            <button onclick="confirmCheckout()">Confirm Checkout</button>
+            <div id="confirmResponse" class="response" style="display:none;"></div>
+        </div>
+
+        <!-- Step 3: Open Razorpay Checkout -->
+        <div class="section">
+            <h2>Step 3: Open Razorpay Checkout Modal</h2>
+            <p>Frontend opens Razorpay checkout using the <code>razorpayOrderId</code> from Step 2</p>
+            <button onclick="openRazorpayCheckout()">Open Razorpay Modal</button>
+            <p style="color: #666; font-size: 12px;">
+                ⚠️ Note: You need Razorpay public key and order details from Step 2
+            </p>
+        </div>
+
+        <!-- API Response Display -->
+        <div class="section">
+            <h2>📊 API Responses</h2>
+            <h3>Validate Checkout Response:</h3>
+            <div id="validateResponseDisplay" class="response" style="display:none;"></div>
+            
+            <h3>Confirm Checkout Response:</h3>
+            <div id="confirmResponseDisplay" class="response" style="display:none;"></div>
+            
+            <h3>Payment Status:</h3>
+            <div id="paymentStatus" class="response" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Razorpay SDK (load from CDN) -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8080';
+        const RAZORPAY_KEY_ID = 'YOUR_RAZORPAY_PUBLIC_KEY';  // Get from Razorpay dashboard
+        
+        // Global variables to store responses
+        let currentValidation = null;
+        let currentOrder = null;
+
+        // ========== Step 1: VALIDATE CHECKOUT ==========
+        async function validateCheckout() {
+            console.log('Step 1: Validating checkout...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/cart/validateCheckout`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                currentValidation = data;
+
+                displayResponse('validateResponseDisplay', data, response.ok);
+
+                if (response.ok && data.isValid) {
+                    alert('✅ Cart validation passed! Ready for checkout.');
+                } else {
+                    alert('❌ Validation failed:\n' + (data.issues || []).join('\n'));
+                }
+
+                console.log('Validation Response:', data);
+            } catch (error) {
+                console.error('Validation Error:', error);
+                displayError('validateResponseDisplay', error);
+            }
+        }
+
+        // ========== Step 2: CONFIRM CHECKOUT ==========
+        async function confirmCheckout() {
+            // First validate
+            if (!currentValidation || !currentValidation.isValid) {
+                alert('❌ Please validate checkout first!');
+                return;
+            }
+
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+
+            if (!email || !phone) {
+                alert('❌ Email and phone are required');
+                return;
+            }
+
+            console.log('Step 2: Confirming checkout...');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/cart/checkout/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        phone: phone
+                    })
+                });
+
+                const data = await response.json();
+                currentOrder = data;
+
+                displayResponse('confirmResponseDisplay', data, response.ok);
+
+                if (response.ok) {
+                    alert(`✅ Order created!\n\nOrder ID: ${data.orderId}\nRazorpay Order ID: ${data.razorpayOrderId}\n\nClick "Open Razorpay Modal" to proceed to payment.`);
+                    
+                    // Auto-store in session for next step
+                    sessionStorage.setItem('razorpayOrder', JSON.stringify(data));
+                } else {
+                    alert('❌ Checkout failed:\n' + (data.error || 'Unknown error'));
+                }
+
+                console.log('Checkout Response:', data);
+            } catch (error) {
+                console.error('Checkout Error:', error);
+                displayError('confirmResponseDisplay', error);
+            }
+        }
+
+        // ========== Step 3: OPEN RAZORPAY CHECKOUT ==========
+        function openRazorpayCheckout() {
+            if (!currentOrder) {
+                alert('❌ Please confirm checkout first!');
+                return;
+            }
+
+            console.log('Step 3: Opening Razorpay checkout...');
+
+            const options = {
+                key: RAZORPAY_KEY_ID,  // Razorpay public key
+                order_id: currentOrder.razorpayOrderId,
+                amount: currentOrder.amount * 100,  // Amount in paise
+                currency: 'INR',
+                name: 'Snack E-Commerce',
+                image: 'https://your-logo-url.com/logo.png',  // Your logo URL
+                email: currentOrder.email,
+                contact: currentOrder.phone,
+                
+                // ✅ SUCCESS CALLBACK
+                handler: function(response) {
+                    console.log('Payment Successful!', response);
+                    
+                    handlePaymentSuccess(
+                        currentOrder.razorpayOrderId,
+                        response.razorpay_payment_id,
+                        response.razorpay_signature
+                    );
+                },
+
+                // ❌ FAILURE CALLBACK
+                modal: {
+                    ondismiss: function() {
+                        console.log('Payment modal closed by user');
+                        alert('Payment cancelled. Your order is still saved. You can retry anytime.');
+                    }
+                },
+
+                // Error handling
+                error: function(error) {
+                    console.error('Razorpay Error:', error);
+                    handlePaymentFailure(
+                        currentOrder.razorpayOrderId,
+                        error.description
+                    );
+                }
+            };
+
+            // Open Razorpay checkout
+            const rzp = new Razorpay(options);
+            rzp.open();
+        }
+
+        // ========== PAYMENT SUCCESS WEBHOOK CALLBACK ==========
+        async function handlePaymentSuccess(razorpayOrderId, razorpayPaymentId, signature) {
+            console.log('Handling payment success...');
+            console.log('- Razorpay Order ID:', razorpayOrderId);
+            console.log('- Razorpay Payment ID:', razorpayPaymentId);
+            console.log('- Signature:', signature);
+
+            try {
+                // Call backend webhook endpoint
+                const response = await fetch(
+                    `${API_BASE_URL}/api/payments/webhook/success?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=${razorpayPaymentId}&signature=${signature}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                const data = await response.json();
+                displayResponse('paymentStatus', data, response.ok);
+
+                if (response.ok) {
+                    alert('✅ Payment Successful!\n\n' + data.message + '\n\nYour order is confirmed.');
+                    clearCheckout();
+                    // Redirect to order confirmation page
+                    // window.location.href = '/orders/' + currentOrder.orderId;
+                } else {
+                    alert('❌ Payment verification failed:\n' + (data.error || 'Unknown error'));
+                }
+
+                console.log('Payment Success Response:', data);
+            } catch (error) {
+                console.error('Payment Success Error:', error);
+                displayError('paymentStatus', error);
+            }
+        }
+
+        // ========== PAYMENT FAILURE WEBHOOK CALLBACK ==========
+        async function handlePaymentFailure(razorpayOrderId, errorMessage) {
+            console.log('Handling payment failure...');
+            console.log('- Razorpay Order ID:', razorpayOrderId);
+            console.log('- Error:', errorMessage);
+
+            try {
+                // Call backend webhook endpoint
+                const response = await fetch(
+                    `${API_BASE_URL}/api/payments/webhook/failure?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=unknown`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                const data = await response.json();
+                displayResponse('paymentStatus', data, response.ok);
+
+                if (response.ok) {
+                    alert('❌ Payment Failed!\n\n' + data.message + '\n\nYour cart items are preserved. You can retry.');
+                    // Keep order/cart for retry
+                } else {
+                    alert('Error processing payment failure: ' + (data.error || 'Unknown error'));
+                }
+
+                console.log('Payment Failure Response:', data);
+            } catch (error) {
+                console.error('Payment Failure Error:', error);
+                displayError('paymentStatus', error);
+            }
+        }
+
+        // ========== UTILITY FUNCTIONS ==========
+
+        function getToken() {
+            // Get JWT token from localStorage (set after login)
+            return localStorage.getItem('authToken') || '';
+        }
+
+        function displayResponse(elementId, data, isSuccess) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+            element.className = 'response ' + (isSuccess ? 'success' : 'error');
+            element.style.display = 'block';
+        }
+
+        function displayError(elementId, error) {
+            const element = document.getElementById(elementId);
+            element.textContent = error.message || error.toString();
+            element.className = 'response error';
+            element.style.display = 'block';
+        }
+
+        function clearCheckout() {
+            currentValidation = null;
+            currentOrder = null;
+            sessionStorage.removeItem('razorpayOrder');
+        }
+
+        // Log initialization
+        console.log('Razorpay Checkout Integration Loaded');
+        console.log('API Base URL:', API_BASE_URL);
+        console.log('Razorpay Key ID:', RAZORPAY_KEY_ID);
+    </script>
+</body>
+</html>

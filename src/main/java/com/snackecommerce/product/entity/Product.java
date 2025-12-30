@@ -25,12 +25,18 @@ public class Product {
 
     private Integer stockQuantity;
 
+    private Integer reservedQuantity = 0;  // Stock reserved for pending payments
+
     private Boolean active = true;
 
     private Boolean isEligibleForCoupon = true;  // Controls if product is eligible for coupon systems
+
+    @Version
+    private Long version;  // Optimistic locking for concurrent updates
 
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     // No ORM mappings - manual deletion handled in service layer
+
 }

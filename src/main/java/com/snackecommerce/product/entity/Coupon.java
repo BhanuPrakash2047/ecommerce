@@ -39,5 +39,9 @@ public class Coupon {
     private LocalDateTime validFrom;
     private LocalDateTime validTill;
 
+    @Version
+    private Long version;  // Optimistic locking for concurrent usedCount updates
+
+
     // No ORM mappings - manual deletion handled in service layer
 }

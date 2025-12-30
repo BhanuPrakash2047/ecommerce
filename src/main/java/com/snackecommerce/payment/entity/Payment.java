@@ -33,7 +33,15 @@ public class Payment {
     @Column(unique = true)
     private String idempotencyKey;
 
+    private LocalDateTime confirmedAt;  // When payment was confirmed
+
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
-}
 
+    private LocalDateTime updatedAt;
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+}

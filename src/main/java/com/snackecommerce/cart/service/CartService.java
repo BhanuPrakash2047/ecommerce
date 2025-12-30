@@ -12,6 +12,11 @@ import com.snackecommerce.product.entity.Product;
 import com.snackecommerce.product.repository.CouponRepository;
 import com.snackecommerce.product.repository.ProductCouponRepository;
 import com.snackecommerce.product.repository.ProductRepository;
+import com.snackecommerce.order.entity.Order;
+import com.snackecommerce.order.entity.OrderItem;
+import com.snackecommerce.order.enums.OrderStatus;
+import com.snackecommerce.order.repository.OrderRepository;
+import com.snackecommerce.order.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +45,12 @@ public class CartService {
 
     @Autowired
     private ProductCouponRepository productCouponRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderItemRepository orderItemRepository;
 
     // ==================== 1. GET OR CREATE CART ====================
 
@@ -735,6 +746,81 @@ public class CartService {
                eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) >= 0;
     }
 
+    // ==================== 15. CHECKOUT ====================
+
+    /**
+     * Create order from cart for payment
+     * 
+     * IMPORTANT: Call validateCheckout() BEFORE this method to ensure all validations pass
+     * 
+     * This method assumes all validations have been done and simply:
+     * 1. Creates Order with PAYMENT_PENDING status
+     * 2. Creates OrderItems with price snapshots
+     * 
+     * @param userId User ID
+     * @return Order object with PAYMENT_PENDING status
+     * @throws Exception if order creation fails
+     */
+    public Order proceedToCheckout(Long userId) throws Exception {
+        // Get cart
+        Cart cart = cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE)
+                .orElseThrow(() -> new CartNotFoundException("No active cart found for user: " + userId));
+
+        // Get cart items
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+        if (cartItems.isEmpty()) {
+            throw new CartNotFoundException("Cart is empty");
+        }
+
+        // Create order items with price snapshots from cart
+        List<OrderItem> orderItems = new ArrayList<>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+
+        for (CartItem cartItem : cartItems) {
+            Product product = productRepository.findById(cartItem.getProductId())
+                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + cartItem.getProductId()));
+
+            // Create order item with snapshot prices
+            OrderItem orderItem = OrderItem.builder()
+                    .productId(product.getId())
+                    .productNameSnapshot(product.getName())
+                    .unitPriceSnapshot(product.getPrice())
+                    .quantity(cartItem.getQuantity())
+                    .build();
+            orderItems.add(orderItem);
+
+            subtotal = subtotal.add(BigDecimal.valueOf(product.getPrice() * cartItem.getQuantity()));
+        }
+
+        // Calculate discount from cart
+        BigDecimal discountAmount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount = subtotal.subtract(discountAmount);
+
+        // Create order with PAYMENT_PENDING status
+        Order order = Order.builder()
+                .orderNumber("ORD-" + System.currentTimeMillis() + "-" + userId)
+                .userId(userId)
+                .status(OrderStatus.PAYMENT_PENDING)
+                .subtotal(subtotal)
+                .discountAmount(discountAmount)
+                .totalAmountBigDecimal(totalAmount)
+                .totalAmount(totalAmount.doubleValue())
+                .appliedCouponId(cart.getAppliedCouponId())
+                .cartId(cart.getId())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        order = orderRepository.save(order);
+
+        // Create order items
+        for (OrderItem orderItem : orderItems) {
+            orderItem.setOrderId(order.getId());
+            orderItemRepository.save(orderItem);
+        }
+
+        return order;
+    }
+
     private BigDecimal calculateDiscount(BigDecimal eligibleTotal, Coupon coupon) {
         BigDecimal discount = BigDecimal.ZERO;
 
@@ -749,3 +835,4 @@ public class CartService {
         return discount;
     }
 }
+

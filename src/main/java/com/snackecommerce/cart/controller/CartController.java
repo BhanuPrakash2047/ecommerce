@@ -3,6 +3,10 @@ package com.snackecommerce.cart.controller;
 import com.snackecommerce.cart.dto.*;
 import com.snackecommerce.cart.service.CartService;
 import com.snackecommerce.user.repository.UserRepository;
+import com.snackecommerce.payment.service.PaymentService;
+import com.snackecommerce.payment.dto.CreatePaymentRequest;
+import com.snackecommerce.payment.dto.PaymentResponse;
+import com.snackecommerce.order.entity.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +26,9 @@ public class CartController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PaymentService paymentService;
 
     // ==================== CART MANAGEMENT ====================
 
@@ -133,28 +140,79 @@ public class CartController {
     }
 
     /**
-     * POST /api/cart/checkout/confirm - Confirm checkout and create order
-     * (Dummy implementation - payment integration deferred)
+     * POST /api/cart/checkout/confirm - Confirm checkout and initiate payment
+     * 
+     * IMPORTANT: Call GET /api/cart/validateCheckout first to ensure all conditions are met
+     * 
+     * Flow:
+     * 1. Validate cart (validateCheckout must pass)
+     * 2. Create Order with PAYMENT_PENDING status
+     * 3. Create OrderItems with price snapshots
+     * 4. Create Razorpay order and reserve stock
+     * 5. Return Razorpay payment details to frontend
+     * 
+     * Request: { "email": "user@example.com", "phone": "9876543210" }
+     * Response: { "razorpayOrderId": "order_ABC123", "amount": 5000, "orderId": 1, ... }
      */
     @PostMapping("/checkout/confirm")
-    public ResponseEntity<Map<String, Object>> confirmCheckout(@RequestBody Map<String, Object> request) {
-        Long userId = getCurrentUserId();
-        
-        // Placeholder: In Phase 2, integrate with payment gateway
-        // Steps:
-        // 1. Validate again
-        // 2. Attempt payment
-        // 3. Deduct stock
-        // 4. Create order
-        // 5. Empty cart
-        // 6. Return order ID
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("orderId", "ORDER-" + System.currentTimeMillis());
-        response.put("status", "PENDING");
-        response.put("message", "Checkout confirmed. Payment integration pending for Phase 2.");
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<?> confirmCheckout(@RequestBody Map<String, Object> request) {
+        try {
+            Long userId = getCurrentUserId();
+            
+            // Step 1: Validate checkout (checks all conditions)
+            CheckoutValidationResponse validation = cartService.validateCheckout(userId);
+            
+            if (!validation.getIsValid()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Checkout validation failed");
+                error.put("issues", validation.getIssues());
+                error.put("message", validation.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
+            // Step 2: Get customer details from request
+            String email = (String) request.get("email");
+            String phone = (String) request.get("phone");
+            
+            if (email == null || phone == null) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Email and phone are required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
+            // Step 3: Create order from cart (all validations already done)
+            Order order = cartService.proceedToCheckout(userId);
+            
+            // Step 4: Create Razorpay order and reserve stock
+            CreatePaymentRequest paymentRequest = CreatePaymentRequest.builder()
+                    .orderId(order.getId())
+                    .amount(order.getTotalAmountBigDecimal().longValue())
+                    .email(email)
+                    .phone(phone)
+                    .build();
+            
+            PaymentResponse paymentResponse = paymentService.createPayment(paymentRequest);
+            
+            // Step 5: Return Razorpay details to frontend
+            Map<String, Object> response = new HashMap<>();
+            response.put("orderId", order.getId());
+            response.put("orderNumber", order.getOrderNumber());
+            response.put("razorpayOrderId", paymentResponse.getRazorpayOrderId());
+            response.put("amount", paymentResponse.getAmount());
+            response.put("email", paymentResponse.getEmail());
+            response.put("phone", paymentResponse.getPhone());
+            response.put("message", "Order created. Ready for payment.");
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Checkout failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     // ==================== HELPER METHODS ====================

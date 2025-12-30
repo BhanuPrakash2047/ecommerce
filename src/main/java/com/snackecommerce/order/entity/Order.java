@@ -57,6 +57,9 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private TrackingAgent trackingAgent;
 
+    @Version
+    private Long version;  // Optimistic locking for concurrent updates
+
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
