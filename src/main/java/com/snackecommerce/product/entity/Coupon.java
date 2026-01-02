@@ -1,6 +1,5 @@
 package com.snackecommerce.product.entity;
 
-import com.snackecommerce.product.enums.DiscountType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,18 +19,11 @@ public class Coupon {
     private String code;
 
     @Enumerated(EnumType.STRING)
-    private DiscountType discountType;   // PERCENTAGE / FLAT
+    private CouponType type;  // FLAT or PERCENTAGE
 
-    private Double discountValue;
+    private Double discountValue;  // Amount in rupees for FLAT, percentage for PERCENTAGE (e.g., 25 for 25%)
 
-    private Double minOrderAmount;
-
-    private Integer maxUsagePerUser;
-
-    private Integer totalUsageLimit;
-
-    @Builder.Default
-    private Integer usedCount = 0;
+    private Double minOrderAmount;  // Minimum cart total required to apply this coupon (e.g., 500 means min ₹500)
 
     @Builder.Default
     private Boolean active = true;
@@ -39,9 +31,8 @@ public class Coupon {
     private LocalDateTime validFrom;
     private LocalDateTime validTill;
 
-    @Version
-    private Long version;  // Optimistic locking for concurrent usedCount updates
-
-
-    // No ORM mappings - manual deletion handled in service layer
+    public enum CouponType {
+        FLAT,       // Flat discount in rupees (e.g., 100 rupees off)
+        PERCENTAGE  // Percentage discount (e.g., 25% off)
+    }
 }

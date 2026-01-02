@@ -10,8 +10,8 @@ import com.snackecommerce.common.exception.*;
 import com.snackecommerce.product.entity.Coupon;
 import com.snackecommerce.product.entity.Product;
 import com.snackecommerce.product.repository.CouponRepository;
-import com.snackecommerce.product.repository.ProductCouponRepository;
 import com.snackecommerce.product.repository.ProductRepository;
+import com.snackecommerce.product.service.CouponService;
 import com.snackecommerce.order.entity.Order;
 import com.snackecommerce.order.entity.OrderItem;
 import com.snackecommerce.order.enums.OrderStatus;
@@ -20,16 +20,18 @@ import com.snackecommerce.order.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class CartService {
+
+    private static final Logger logger = LoggerFactory.getLogger(CartService.class);
 
     @Autowired
     private CartRepository cartRepository;
@@ -44,15 +46,15 @@ public class CartService {
     private CouponRepository couponRepository;
 
     @Autowired
-    private ProductCouponRepository productCouponRepository;
-
-    @Autowired
     private OrderRepository orderRepository;
 
     @Autowired
     private OrderItemRepository orderItemRepository;
 
-    // ==================== 1. GET OR CREATE CART ====================
+    @Autowired
+    private CouponService couponService;
+
+    // ==================== GET OR CREATE CART ====================
 
     public Cart getOrCreateCart(Long userId) {
         Optional<Cart> existingCart = cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE);
@@ -68,56 +70,43 @@ public class CartService {
         return cartRepository.save(newCart);
     }
 
-    // ==================== 2. ADD TO CART ====================
+    // ==================== ADD TO CART ====================
 
     public CartResponse addToCart(Long userId, AddToCartRequest request) {
-        // Validate quantity
         if (request.getQuantity() < 1 || request.getQuantity() > 100) {
             throw new InvalidCartItemException("Quantity must be between 1 and 100");
         }
 
-        // Get cart
         Cart cart = getOrCreateCart(userId);
 
-        // Check product exists
+        // Check product exists and is available
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + request.getProductId()));
 
-        // Check stock availability
-        if (product.getStockQuantity() < request.getQuantity()) {
-            throw new InsufficientStockException("Only " + product.getStockQuantity() + " units available for " + product.getName());
+        if (!product.getIsAvailable()) {
+            throw new InvalidCartItemException("Product is not available: " + product.getName());
         }
 
-        // Get current price
         BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
 
-        // Check if product already in cart (prevent duplicates - merge instead)
+        // Check if product already in cart
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), request.getProductId());
         
         CartItem cartItem;
         List<String> alerts = new ArrayList<>();
 
         if (existingItem.isPresent()) {
-            // Item exists: merge quantities
             cartItem = existingItem.get();
-            Integer newQuantity = cartItem.getQuantity() + request.getQuantity();
+            cartItem.setQuantity(cartItem.getQuantity() + request.getQuantity());
             
-            // Check stock for merged quantity
-            if (product.getStockQuantity() < newQuantity) {
-                throw new InsufficientStockException("Only " + product.getStockQuantity() + " units available. Current in cart: " + cartItem.getQuantity());
-            }
-
-            // Check for price changes
+            // Check price changes
             if (!cartItem.getSnapshotPrice().equals(currentPrice)) {
                 BigDecimal priceDiff = currentPrice.subtract(cartItem.getSnapshotPrice());
                 String direction = priceDiff.compareTo(BigDecimal.ZERO) > 0 ? "↑" : "↓";
-                alerts.add("Price " + direction + " ₹" + cartItem.getSnapshotPrice() + " → ₹" + currentPrice + " (" + priceDiff.abs() + ")");
+                alerts.add("Price " + direction + " ₹" + cartItem.getSnapshotPrice() + " → ₹" + currentPrice);
                 cartItem.setSnapshotPrice(currentPrice);
             }
-
-            cartItem.setQuantity(newQuantity);
         } else {
-            // New item
             cartItem = CartItem.builder()
                     .cartId(cart.getId())
                     .productId(request.getProductId())
@@ -131,15 +120,17 @@ public class CartService {
         cartItem.setLastPriceCheckAt(LocalDateTime.now());
         cartItemRepository.save(cartItem);
 
-        // Update cart timestamp
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
 
-        // Recalculate and return
+        // Validate coupon eligibility after adding item
+        validateAndRemoveCouponIfNeeded(cart, alerts);
+
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 3. REMOVE FROM CART ====================
+    // ==================== REMOVE FROM CART ====================
+
     public CartResponse removeFromCart(Long userId, Long cartItemId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
@@ -156,23 +147,16 @@ public class CartService {
         cartRepository.save(cart);
 
         List<String> alerts = new ArrayList<>();
-        // Check if coupon still valid after item removal
-        if (cart.getAppliedCouponId() != null) {
-            if (!isCouponStillValidForCart(cart)) {
-                alerts.add("Applied coupon no longer valid for remaining items. Discount removed.");
-                cart.setAppliedCouponId(null);
-                cart.setDiscountAmount(BigDecimal.ZERO);
-                cartRepository.save(cart);
-            }
-        }
+
+        // Validate coupon eligibility after removing item
+        validateAndRemoveCouponIfNeeded(cart, alerts);
 
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 4. UPDATE QUANTITY ====================
+    // ==================== UPDATE QUANTITY ====================
 
     public CartResponse updateQuantity(Long userId, Long cartItemId, Integer newQuantity) {
-        // Validate quantity
         if (newQuantity < 1 || newQuantity > 999) {
             throw new InvalidCartItemException("Quantity must be between 1 and 999");
         }
@@ -190,12 +174,6 @@ public class CartService {
         Product product = productRepository.findById(item.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found"));
 
-        // Check stock for new quantity
-        if (product.getStockQuantity() < newQuantity) {
-            throw new InsufficientStockException("Only " + product.getStockQuantity() + " units available");
-        }
-
-        // Check for price changes
         BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
         List<String> alerts = new ArrayList<>();
 
@@ -210,58 +188,127 @@ public class CartService {
         item.setLastPriceCheckAt(LocalDateTime.now());
         cartItemRepository.save(item);
 
-        // Recalculate coupon eligibility after quantity change
-        if (cart.getAppliedCouponId() != null) {
-            if (!isCouponStillValidForCart(cart)) {
-                alerts.add("Applied coupon no longer valid after quantity update. Discount removed.");
-                cart.setAppliedCouponId(null);
-                cart.setDiscountAmount(BigDecimal.ZERO);
-            }
-        }
-
-        // Recalculate everything including coupon
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
+
+        // Validate coupon eligibility after updating quantity
+        validateAndRemoveCouponIfNeeded(cart, alerts);
 
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 5. VIEW CART ====================
+    // ==================== VIEW CART ====================
+
     public CartResponse getCart(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
 
         List<String> alerts = new ArrayList<>();
         
-        // Validate all products and prices
-        validateAllCartItems(cart, alerts);
-        
-        // Check if applied coupon still valid
-        if (cart.getAppliedCouponId() != null) {
-            validateAppliedCoupon(cart, alerts);
+        // Validate all products are available
+        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
+        for (CartItem item : items) {
+            Product product = productRepository.findById(item.getProductId()).orElse(null);
+            if (product == null || !product.getIsAvailable()) {
+                cartItemRepository.delete(item);
+                alerts.add("Product no longer available. Removed from cart");
+            }
         }
 
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 6. GET ELIGIBLE COUPONS ====================
+    // ==================== GET ELIGIBLE COUPONS ====================
 
     public EligibleCouponsResponse getEligibleCoupons(Long userId) {
+        // Step 1: Fetch cart
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
+
+        // Step 2: Fetch cart items
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+        
+        if (cartItems.isEmpty()) {
+            return EligibleCouponsResponse.builder()
+                    .eligibleCoupons(new ArrayList<>())
+                    .ineligibleCoupons(new ArrayList<>())
+                    .build();
+        }
+
+        // Step 3: Fetch all products once
+        List<Product> allProducts = productRepository.findAll();
+
+        // Step 4: Calculate subtotal - ONLY for coupon-eligible items
+        BigDecimal eligibleSubtotal = BigDecimal.ZERO;
+        boolean hasCouponEligibleProducts = false;
+
+        for (CartItem item : cartItems) {
+            // Find product for this item
+            Product product = null;
+            for (Product p : allProducts) {
+                if (p.getId().equals(item.getProductId())) {
+                    product = p;
+                    break;
+                }
+            }
+
+            // If product is coupon-eligible, add to subtotal
+            if (product != null && product.getIsEligibleForCoupon()) {
+                hasCouponEligibleProducts = true;
+                BigDecimal itemAmount = BigDecimal.valueOf(item.getSnapshotPrice().doubleValue() * item.getQuantity());
+                eligibleSubtotal = eligibleSubtotal.add(itemAmount);
+            }
+        }
 
         List<EligibleCouponsResponse.CouponOption> eligible = new ArrayList<>();
         List<EligibleCouponsResponse.CouponOption> ineligible = new ArrayList<>();
 
         List<Coupon> allCoupons = couponRepository.findAll();
 
+        // Step 5: For each coupon, check eligibility
         for (Coupon coupon : allCoupons) {
-            EligibleCouponsResponse.CouponOption option = evaluateCouponForCart(coupon, cart);
-            
-            if (option.getIsEligible()) {
-                eligible.add(option);
+            String ineligibilityReason = null;
+
+            // Check 1: Is coupon active and not expired?
+            if (!coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
+                ineligibilityReason = "Coupon is not active or expired";
+            }
+
+            // Check 2: Does cart have coupon-eligible products?
+            if (ineligibilityReason == null && !hasCouponEligibleProducts) {
+                ineligibilityReason = "No coupon-eligible products in cart";
+            }
+
+            // Check 3: Does eligible subtotal meet minimum amount required?
+            if (ineligibilityReason == null && coupon.getMinOrderAmount() != null) {
+                if (eligibleSubtotal.doubleValue() < coupon.getMinOrderAmount()) {
+                    ineligibilityReason = "Minimum order amount ₹" + coupon.getMinOrderAmount() + " required";
+                }
+            }
+
+            if (ineligibilityReason != null) {
+                ineligible.add(EligibleCouponsResponse.CouponOption.builder()
+                        .couponId(coupon.getId())
+                        .code(coupon.getCode())
+                        .isEligible(false)
+                        .reason(ineligibilityReason)
+                        .build());
             } else {
-                ineligible.add(option);
+                // Calculate actual discount based on coupon type and eligible subtotal
+                Double discountForDisplay;
+                if ("FLAT".equals(coupon.getType().toString())) {
+                    discountForDisplay = coupon.getDiscountValue();
+                } else {
+                    // PERCENTAGE type
+                    discountForDisplay = (eligibleSubtotal.doubleValue() * coupon.getDiscountValue()) / 100;
+                }
+                
+                eligible.add(EligibleCouponsResponse.CouponOption.builder()
+                        .couponId(coupon.getId())
+                        .code(coupon.getCode())
+                        .discountAmount(BigDecimal.valueOf(discountForDisplay))
+                        .isEligible(true)
+                        .build());
             }
         }
 
@@ -271,7 +318,7 @@ public class CartService {
                 .build();
     }
 
-    // ==================== 7. APPLY COUPON ====================
+    // ==================== APPLY COUPON ====================
 
     public CartResponse applyCoupon(Long userId, ApplyCouponRequest request) {
         Cart cart = cartRepository.findByUserId(userId)
@@ -280,24 +327,32 @@ public class CartService {
         Coupon coupon = couponRepository.findById(request.getCouponId())
                 .orElseThrow(() -> new CouponNotFoundException("Coupon not found: " + request.getCouponId()));
 
-        // Validate coupon
-        String validationError = validateCouponForApply(coupon, cart);
-        if (validationError != null) {
-            throw new InvalidCouponStateException(validationError);
+        if (!coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
+            throw new InvalidCouponStateException("Coupon is not active or has expired");
         }
 
-        // Apply coupon
+        // Calculate subtotal and validate minimum order amount
+        BigDecimal subtotal = calculateSubtotal(cart);
+        couponService.validateCouponEligibility(coupon, subtotal.doubleValue());
+
+        // Calculate discount based on type (FLAT or PERCENTAGE)
+        Double discountAmount = couponService.calculateDiscount(coupon, subtotal.doubleValue());
+
         cart.setAppliedCouponId(coupon.getId());
+        cart.setDiscountAmount(BigDecimal.valueOf(discountAmount));
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
 
         List<String> alerts = new ArrayList<>();
-        alerts.add("Coupon applied: " + coupon.getCode());
+        String discountDesc = coupon.getType().toString().equals("FLAT")
+            ? "₹" + discountAmount
+            : String.valueOf(discountAmount);
+        alerts.add("Coupon applied: " + coupon.getCode() + " (" + discountDesc + " off)");
 
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 8. REMOVE COUPON ====================
+    // ==================== REMOVE COUPON ====================
 
     public CartResponse removeCoupon(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
@@ -314,16 +369,15 @@ public class CartService {
         return getCartResponse(cart, alerts);
     }
 
-    // ==================== 14. FINAL CHECKOUT VALIDATION ====================
+    // ==================== CHECKOUT VALIDATION ====================
 
     public CheckoutValidationResponse validateCheckout(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
 
         List<String> issues = new ArrayList<>();
-
-        // Check 1: Cart not empty
         List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
+
         if (items.isEmpty()) {
             return CheckoutValidationResponse.builder()
                     .isValid(false)
@@ -332,49 +386,37 @@ public class CartService {
                     .build();
         }
 
-        // For each item, validate
+        // Validate all items exist and are available
         List<CartItemResponse> validatedItems = new ArrayList<>();
 
         for (CartItem item : items) {
             Product product = productRepository.findById(item.getProductId()).orElse(null);
 
-            // Check: Product exists
             if (product == null) {
                 issues.add("Product not found. Removed from cart");
                 cartItemRepository.delete(item);
                 continue;
             }
-
-            // Check: Stock sufficient
-            if (product.getStockQuantity() < item.getQuantity()) {
-                issues.add("Insufficient stock for " + product.getName() + ". Available: " + product.getStockQuantity());
+            if (!product.getIsAvailable()) {
+                issues.add("Product " + product.getName() + " is no longer available");
                 cartItemRepository.delete(item);
                 continue;
             }
 
-            // Check: Price matches snapshot
             BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
-            if (!currentPrice.equals(item.getSnapshotPrice())) {
-                issues.add("Price changed for " + product.getName() + ": ₹" + item.getSnapshotPrice() + " → ₹" + currentPrice);
-                cartItemRepository.delete(item);
-                continue;
-            }
+            BigDecimal itemTotal = currentPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
 
-            // Valid item
-            CartItemResponse itemResponse = CartItemResponse.builder()
+            validatedItems.add(CartItemResponse.builder()
                     .cartItemId(item.getId())
                     .productId(item.getProductId())
                     .productName(item.getProductNameSnapshot())
                     .quantity(item.getQuantity())
                     .snapshotPrice(item.getSnapshotPrice())
                     .currentPrice(currentPrice)
-                    .itemTotal(currentPrice.multiply(BigDecimal.valueOf(item.getQuantity())))
-                    .build();
-
-            validatedItems.add(itemResponse);
+                    .itemTotal(itemTotal)
+                    .build());
         }
 
-        // If no valid items remain
         if (validatedItems.isEmpty()) {
             return CheckoutValidationResponse.builder()
                     .isValid(false)
@@ -383,51 +425,33 @@ public class CartService {
                     .build();
         }
 
-        // Validate applied coupon
+        // Validate coupon if applied
         if (cart.getAppliedCouponId() != null) {
             Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
-
             if (coupon == null || !coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
                 issues.add("Applied coupon is no longer valid");
                 cart.setAppliedCouponId(null);
                 cart.setDiscountAmount(BigDecimal.ZERO);
                 cartRepository.save(cart);
-            } else {
-                // Verify coupon still applies to items AND eligible total meets minimum (CRITICAL BUG FIX)
-                BigDecimal eligibleTotal = BigDecimal.ZERO;
-                for (CartItemResponse itemResp : validatedItems) {
-                    if (productCouponRepository.findByProductIdAndCouponId(itemResp.getProductId(), coupon.getId()).isPresent()) {
-                        eligibleTotal = eligibleTotal.add(itemResp.getItemTotal());
-                    }
-                }
-
-                // Check 1: Has eligible products
-                if (eligibleTotal.compareTo(BigDecimal.ZERO) == 0) {
-                    issues.add("No products in cart are eligible for applied coupon");
-                    cart.setAppliedCouponId(null);
-                    cart.setDiscountAmount(BigDecimal.ZERO);
-                    cartRepository.save(cart);
-                }
-                // Check 2: Eligible total meets minimum requirement
-                else if (eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) < 0) {
-                    issues.add("Eligible products total (₹" + eligibleTotal + ") below minimum (₹" + coupon.getMinOrderAmount() + ")");
-                    cart.setAppliedCouponId(null);
-                    cart.setDiscountAmount(BigDecimal.ZERO);
-                    cartRepository.save(cart);
-                }
             }
         }
 
-        // Calculate final totals
         BigDecimal subtotal = validatedItems.stream()
                 .map(CartItemResponse::getItemTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal discount = BigDecimal.ZERO;
+        // Validate minimum order amount for applied coupon
         if (cart.getAppliedCouponId() != null) {
-            discount = cart.getDiscountAmount();
+            Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
+            if (coupon != null && coupon.getMinOrderAmount() != null && subtotal.doubleValue() < coupon.getMinOrderAmount()) {
+                issues.add("Cart amount (₹" + subtotal + ") is below minimum required (₹" + coupon.getMinOrderAmount() + ") for coupon: " + coupon.getCode());
+                cart.setAppliedCouponId(null);
+                cart.setDiscountAmount(BigDecimal.ZERO);
+                cartRepository.save(cart);
+            }
         }
 
+        BigDecimal discount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
         BigDecimal finalTotal = subtotal.subtract(discount);
 
         if (!issues.isEmpty()) {
@@ -438,7 +462,6 @@ public class CartService {
                     .build();
         }
 
-        // All checks passed
         return CheckoutValidationResponse.builder()
                 .isValid(true)
                 .message("Checkout validation successful")
@@ -453,7 +476,81 @@ public class CartService {
                 .build();
     }
 
+    // ==================== CHECKOUT ====================
+
+    /**
+     * Proceed to checkout and create order with address reference
+     * @param userId User ID
+     * @param addressId Address ID for delivery
+     * @param receiverName Receiver name
+     * @param receiverPhone Receiver phone
+     * @param receiverEmail Receiver email
+     * @return Created order
+     */
+    public Order proceedToCheckout(Long userId, Long addressId, String receiverName, 
+                                   String receiverPhone, String receiverEmail) throws Exception {
+        Cart cart = cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE)
+                .orElseThrow(() -> new CartNotFoundException("No active cart found for user: " + userId));
+
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+        if (cartItems.isEmpty()) {
+            throw new CartNotFoundException("Cart is empty");
+        }
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+
+        for (CartItem cartItem : cartItems) {
+            Product product = productRepository.findById(cartItem.getProductId())
+                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + cartItem.getProductId()));
+
+            OrderItem orderItem = OrderItem.builder()
+                    .productId(product.getId())
+                    .productNameSnapshot(product.getName())
+                    .unitPriceSnapshot(BigDecimal.valueOf(product.getPrice()))
+                    .quantity(cartItem.getQuantity())
+                    .build();
+            orderItems.add(orderItem);
+
+            subtotal = subtotal.add(BigDecimal.valueOf(product.getPrice() * cartItem.getQuantity()));
+        }
+
+        BigDecimal discountAmount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount = subtotal.subtract(discountAmount);
+
+        // Create order with address reference for delivery
+        Order order = Order.builder()
+                .orderNumber("ORD-" + System.currentTimeMillis() + "-" + userId)
+                .userId(userId)
+                .status(OrderStatus.PAYMENT_PENDING)
+                .subtotal(subtotal)
+                .discountAmount(discountAmount)
+                .totalAmountBigDecimal(totalAmount)
+                .totalAmount(totalAmount.doubleValue())
+                .appliedCouponId(cart.getAppliedCouponId())
+                .cartId(cart.getId())
+                // Store address reference
+                .addressId(addressId)
+                .receiverName(receiverName)
+                .receiverPhone(receiverPhone)
+                .receiverEmail(receiverEmail)
+                .build();
+
+        order = orderRepository.save(order);
+
+        for (OrderItem orderItem : orderItems) {
+            orderItem.setOrderId(order.getId());
+            orderItemRepository.save(orderItem);
+        }
+
+        logger.info("Order created with ID: {} for user: {} with addressId: {}", 
+                   order.getId(), userId, addressId);
+        
+        return order;
+    }
+
     // ==================== HELPER METHODS ====================
+
     private CartResponse getCartResponse(Cart cart, List<String> alerts) {
         List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
         List<CartItemResponse> itemResponses = new ArrayList<>();
@@ -462,8 +559,7 @@ public class CartService {
         for (CartItem item : items) {
             Product product = productRepository.findById(item.getProductId()).orElse(null);
 
-            if (product == null) {
-                // Product deleted - remove from cart
+            if (product == null || !product.getIsAvailable()) {
                 cartItemRepository.delete(item);
                 alerts.add("Product no longer available. Removed from cart");
                 continue;
@@ -471,18 +567,6 @@ public class CartService {
 
             BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
             BigDecimal itemTotal = currentPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
-
-            // Check price changes
-            String priceAlert = null;
-            if (!currentPrice.equals(item.getSnapshotPrice())) {
-                BigDecimal diff = currentPrice.subtract(item.getSnapshotPrice());
-                String direction = diff.compareTo(BigDecimal.ZERO) > 0 ? "↑" : "↓";
-                priceAlert = "Price " + direction + " ₹" + item.getSnapshotPrice() + " → ₹" + currentPrice;
-                item.setSnapshotPrice(currentPrice);
-                item.setLastPriceCheckAt(LocalDateTime.now());
-                cartItemRepository.save(item);
-                alerts.add(priceAlert);
-            }
 
             itemResponses.add(CartItemResponse.builder()
                     .cartItemId(item.getId())
@@ -492,7 +576,6 @@ public class CartService {
                     .snapshotPrice(item.getSnapshotPrice())
                     .currentPrice(currentPrice)
                     .itemTotal(itemTotal)
-                    .priceChangeAlert(priceAlert)
                     .build());
 
             subtotal = subtotal.add(itemTotal);
@@ -513,326 +596,66 @@ public class CartService {
                 .build();
     }
 
-    private void validateAllCartItems(Cart cart, List<String> alerts) {
-        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
+    // ==================== HELPER METHODS ====================
 
-        for (CartItem item : items) {
-            Product product = productRepository.findById(item.getProductId()).orElse(null);
-
-            // Check: Product exists
-            if (product == null) {
-                alerts.add("Product no longer available. Removing from cart");
-                cartItemRepository.delete(item);
-                continue;
-            }
-
-            // Check: Stock
-            if (product.getStockQuantity() < item.getQuantity()) {
-                alerts.add(product.getName() + ": Only " + product.getStockQuantity() + " available. Quantity reduced.");
-                item.setQuantity(Math.min(item.getQuantity(), product.getStockQuantity()));
-                cartItemRepository.save(item);
-            }
-
-            // Check: Price
-            BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
-            if (!currentPrice.equals(item.getSnapshotPrice())) {
-                BigDecimal diff = currentPrice.subtract(item.getSnapshotPrice());
-                String direction = diff.compareTo(BigDecimal.ZERO) > 0 ? "↑" : "↓";
-                alerts.add(product.getName() + ": Price " + direction + " ₹" + item.getSnapshotPrice() + " → ₹" + currentPrice);
-                item.setSnapshotPrice(currentPrice);
-                item.setLastPriceCheckAt(LocalDateTime.now());
-                cartItemRepository.save(item);
-            }
-        }
-    }
-
-    private void validateAppliedCoupon(Cart cart, List<String> alerts) {
-        Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
-
-        if (coupon == null) {
-            alerts.add("Applied coupon not found. Removed.");
-            cart.setAppliedCouponId(null);
-            cart.setDiscountAmount(BigDecimal.ZERO);
-            cartRepository.save(cart);
-            return;
-        }
-
-        // Check: Expired
-        if (coupon.getValidTill().isBefore(LocalDateTime.now())) {
-            alerts.add("Applied coupon expired. Discount removed.");
-            cart.setAppliedCouponId(null);
-            cart.setDiscountAmount(BigDecimal.ZERO);
-            cartRepository.save(cart);
-            return;
-        }
-
-        // Check: Active
-        if (!coupon.getActive()) {
-            alerts.add("Applied coupon no longer active. Discount removed.");
-            cart.setAppliedCouponId(null);
-            cart.setDiscountAmount(BigDecimal.ZERO);
-            cartRepository.save(cart);
-            return;
-        }
-
-        // Check: Products still eligible AND eligible total meets minimum
-        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
-        BigDecimal eligibleTotal = BigDecimal.ZERO;
+    private BigDecimal calculateSubtotal(Cart cart) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
         
-        for (CartItem item : items) {
-            if (productCouponRepository.findByProductIdAndCouponId(item.getProductId(), coupon.getId()).isPresent()) {
-                Product product = productRepository.findById(item.getProductId()).orElse(null);
-                if (product != null) {
-                    BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice()).multiply(BigDecimal.valueOf(item.getQuantity()));
-                    eligibleTotal = eligibleTotal.add(itemTotal);
-                }
-            }
+        for (CartItem item : cartItems) {
+            Product product = productRepository.findById(item.getProductId())
+                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + item.getProductId()));
+            BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice() * item.getQuantity());
+            subtotal = subtotal.add(itemTotal);
         }
-
-        // Check if no eligible products found
-        if (eligibleTotal.compareTo(BigDecimal.ZERO) == 0) {
-            alerts.add("No products eligible for applied coupon. Discount removed.");
-            cart.setAppliedCouponId(null);
-            cart.setDiscountAmount(BigDecimal.ZERO);
-            cartRepository.save(cart);
-            return;
-        }
-
-        // Check if eligible total is less than minimum required (CRITICAL BUG FIX)
-        if (eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) < 0) {
-            alerts.add("Eligible products total (₹" + eligibleTotal + ") below minimum (₹" + coupon.getMinOrderAmount() + "). Discount removed.");
-            cart.setAppliedCouponId(null);
-            cart.setDiscountAmount(BigDecimal.ZERO);
-            cartRepository.save(cart);
-        }
-    }
-
-    private EligibleCouponsResponse.CouponOption evaluateCouponForCart(Coupon coupon, Cart cart) {
-        // Check 1: Expired?
-        if (coupon.getValidTill().isBefore(LocalDateTime.now())) {
-            return EligibleCouponsResponse.CouponOption.builder()
-                    .couponId(coupon.getId())
-                    .code(coupon.getCode())
-                    .isEligible(false)
-                    .reason("Coupon expired on " + coupon.getValidTill())
-                    .build();
-        }
-
-        // Check 2: Active?
-        if (!coupon.getActive()) {
-            return EligibleCouponsResponse.CouponOption.builder()
-                    .couponId(coupon.getId())
-                    .code(coupon.getCode())
-                    .isEligible(false)
-                    .reason("Coupon is not active")
-                    .build();
-        }
-
-        // Check 3: Usage limit
-        if (coupon.getUsedCount() >= coupon.getTotalUsageLimit()) {
-            return EligibleCouponsResponse.CouponOption.builder()
-                    .couponId(coupon.getId())
-                    .code(coupon.getCode())
-                    .isEligible(false)
-                    .reason("Coupon usage limit exceeded")
-                    .build();
-        }
-
-        // Get eligible products for this coupon
-        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
-        BigDecimal eligibleTotal = BigDecimal.ZERO;
-
-        for (CartItem item : items) {
-            if (productCouponRepository.findByProductIdAndCouponId(item.getProductId(), coupon.getId()).isPresent()) {
-                Product product = productRepository.findById(item.getProductId()).orElse(null);
-                if (product != null) {
-                    BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice()).multiply(BigDecimal.valueOf(item.getQuantity()));
-                    eligibleTotal = eligibleTotal.add(itemTotal);
-                }
-            }
-        }
-
-        // Check 4: Criteria - minimum amount
-        if (eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) < 0) {
-            return EligibleCouponsResponse.CouponOption.builder()
-                    .couponId(coupon.getId())
-                    .code(coupon.getCode())
-                    .isEligible(false)
-                    .reason("Minimum order ₹" + coupon.getMinOrderAmount() + " required (you have ₹" + eligibleTotal + ")")
-                    .build();
-        }
-
-        // Calculate discount
-        BigDecimal discount = calculateDiscount(eligibleTotal, coupon);
-
-        return EligibleCouponsResponse.CouponOption.builder()
-                .couponId(coupon.getId())
-                .code(coupon.getCode())
-                .description(coupon.getDiscountValue() + "% off" + (coupon.getMinOrderAmount() > 0 ? " (min ₹" + coupon.getMinOrderAmount() + ")" : ""))
-                .discountAmount(discount)
-                .discountType(coupon.getDiscountType().name())
-                .isEligible(true)
-                .build();
-    }
-
-    private String validateCouponForApply(Coupon coupon, Cart cart) {
-        // Check: Expired
-        if (coupon.getValidTill().isBefore(LocalDateTime.now())) {
-            return "Coupon expired";
-        }
-
-        // Check: Active
-        if (!coupon.getActive()) {
-            return "Coupon is not active";
-        }
-
-        // Check: Usage limit
-        if (coupon.getUsedCount() >= coupon.getTotalUsageLimit()) {
-            return "Coupon usage limit exceeded";
-        }
-
-        // Check: Eligible products exist
-        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
-        BigDecimal eligibleTotal = BigDecimal.ZERO;
-
-        for (CartItem item : items) {
-            if (productCouponRepository.findByProductIdAndCouponId(item.getProductId(), coupon.getId()).isPresent()) {
-                Product product = productRepository.findById(item.getProductId()).orElse(null);
-                if (product != null) {
-                    BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice()).multiply(BigDecimal.valueOf(item.getQuantity()));
-                    eligibleTotal = eligibleTotal.add(itemTotal);
-                }
-            }
-        }
-
-        // Check: Minimum amount
-        if (eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) < 0) {
-            return "Minimum order ₹" + coupon.getMinOrderAmount() + " required";
-        }
-
-        // Calculate and store discount
-        BigDecimal discount = calculateDiscount(eligibleTotal, coupon);
-        cart.setDiscountAmount(discount);
-
-        return null;
-    }
-
-    private boolean isCouponStillValidForCart(Cart cart) {
-        if (cart.getAppliedCouponId() == null) {
-            return true;
-        }
-
-        Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
-        if (coupon == null || !coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
-            return false;
-        }
-
-        // Check if any item is still eligible AND eligible total meets minimum (CRITICAL BUG FIX)
-        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
-        BigDecimal eligibleTotal = BigDecimal.ZERO;
         
-        for (CartItem item : items) {
-            if (productCouponRepository.findByProductIdAndCouponId(item.getProductId(), coupon.getId()).isPresent()) {
-                Product product = productRepository.findById(item.getProductId()).orElse(null);
-                if (product != null) {
-                    BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice()).multiply(BigDecimal.valueOf(item.getQuantity()));
-                    eligibleTotal = eligibleTotal.add(itemTotal);
-                }
-            }
-        }
-
-        // Must have eligible products AND meet minimum order amount
-        return eligibleTotal.compareTo(BigDecimal.ZERO) > 0 && 
-               eligibleTotal.compareTo(BigDecimal.valueOf(coupon.getMinOrderAmount())) >= 0;
+        return subtotal;
     }
-
-    // ==================== 15. CHECKOUT ====================
 
     /**
-     * Create order from cart for payment
-     * 
-     * IMPORTANT: Call validateCheckout() BEFORE this method to ensure all validations pass
-     * 
-     * This method assumes all validations have been done and simply:
-     * 1. Creates Order with PAYMENT_PENDING status
-     * 2. Creates OrderItems with price snapshots
-     * 
-     * @param userId User ID
-     * @return Order object with PAYMENT_PENDING status
-     * @throws Exception if order creation fails
+     * Validate if applied coupon is still eligible based on current cart subtotal.
+     * If not eligible, remove the coupon and add alert message.
      */
-    public Order proceedToCheckout(Long userId) throws Exception {
-        // Get cart
-        Cart cart = cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE)
-                .orElseThrow(() -> new CartNotFoundException("No active cart found for user: " + userId));
-
-        // Get cart items
-        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
-        if (cartItems.isEmpty()) {
-            throw new CartNotFoundException("Cart is empty");
+    private void validateAndRemoveCouponIfNeeded(Cart cart, List<String> alerts) {
+        if (cart.getAppliedCouponId() == null) {
+            return; // No coupon applied
         }
 
-        // Create order items with price snapshots from cart
-        List<OrderItem> orderItems = new ArrayList<>();
-        BigDecimal subtotal = BigDecimal.ZERO;
+        try {
+            Coupon coupon = couponRepository.findById(cart.getAppliedCouponId())
+                    .orElse(null);
 
-        for (CartItem cartItem : cartItems) {
-            Product product = productRepository.findById(cartItem.getProductId())
-                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + cartItem.getProductId()));
+            if (coupon == null) {
+                // Coupon was deleted, remove it from cart
+                cart.setAppliedCouponId(null);
+                cart.setDiscountAmount(BigDecimal.ZERO);
+                cartRepository.save(cart);
+                alerts.add("Applied coupon no longer available. Removed from cart");
+                return;
+            }
 
-            // Create order item with snapshot prices
-            OrderItem orderItem = OrderItem.builder()
-                    .productId(product.getId())
-                    .productNameSnapshot(product.getName())
-                    .unitPriceSnapshot(product.getPrice())
-                    .quantity(cartItem.getQuantity())
-                    .build();
-            orderItems.add(orderItem);
+            // Check if coupon is still active and not expired
+            if (!coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
+                cart.setAppliedCouponId(null);
+                cart.setDiscountAmount(BigDecimal.ZERO);
+                cartRepository.save(cart);
+                alerts.add("Applied coupon is no longer active or has expired. Removed from cart");
+                return;
+            }
 
-            subtotal = subtotal.add(BigDecimal.valueOf(product.getPrice() * cartItem.getQuantity()));
+            // Check minimum order amount eligibility
+            BigDecimal currentSubtotal = calculateSubtotal(cart);
+            if (coupon.getMinOrderAmount() != null && currentSubtotal.doubleValue() < coupon.getMinOrderAmount()) {
+                cart.setAppliedCouponId(null);
+                cart.setDiscountAmount(BigDecimal.ZERO);
+                cartRepository.save(cart);
+                alerts.add("Cart amount below minimum (₹" + coupon.getMinOrderAmount() + ") for coupon. Coupon removed");
+            }
+        } catch (Exception e) {
+            // Log error but don't fail the operation
+            org.slf4j.LoggerFactory.getLogger(CartService.class)
+                    .warn("Error validating coupon eligibility", e);
         }
-
-        // Calculate discount from cart
-        BigDecimal discountAmount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
-        BigDecimal totalAmount = subtotal.subtract(discountAmount);
-
-        // Create order with PAYMENT_PENDING status
-        Order order = Order.builder()
-                .orderNumber("ORD-" + System.currentTimeMillis() + "-" + userId)
-                .userId(userId)
-                .status(OrderStatus.PAYMENT_PENDING)
-                .subtotal(subtotal)
-                .discountAmount(discountAmount)
-                .totalAmountBigDecimal(totalAmount)
-                .totalAmount(totalAmount.doubleValue())
-                .appliedCouponId(cart.getAppliedCouponId())
-                .cartId(cart.getId())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        order = orderRepository.save(order);
-
-        // Create order items
-        for (OrderItem orderItem : orderItems) {
-            orderItem.setOrderId(order.getId());
-            orderItemRepository.save(orderItem);
-        }
-
-        return order;
-    }
-
-    private BigDecimal calculateDiscount(BigDecimal eligibleTotal, Coupon coupon) {
-        BigDecimal discount = BigDecimal.ZERO;
-
-        if (coupon.getDiscountType().name().equals("PERCENTAGE")) {
-            discount = eligibleTotal.multiply(BigDecimal.valueOf(coupon.getDiscountValue()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
-        } else {
-            // FLAT
-            discount = BigDecimal.valueOf(coupon.getDiscountValue());
-            discount = discount.min(eligibleTotal);  // Can't discount more than eligible total
-        }
-
-        return discount;
     }
 }
 

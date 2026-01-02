@@ -1,10 +1,10 @@
 package com.snackecommerce.product.dto;
 
-import com.snackecommerce.product.enums.DiscountType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.snackecommerce.product.entity.Coupon.CouponType;
 
 import java.time.LocalDateTime;
 
@@ -15,12 +15,9 @@ import java.time.LocalDateTime;
 public class CouponResponse {
     private Long id;
     private String code;
-    private DiscountType discountType;
+    private CouponType type;
     private Double discountValue;
     private Double minOrderAmount;
-    private Integer maxUsagePerUser;
-    private Integer totalUsageLimit;
-    private Integer usedCount;
     private Boolean active;
     private LocalDateTime validFrom;
     private LocalDateTime validTill;

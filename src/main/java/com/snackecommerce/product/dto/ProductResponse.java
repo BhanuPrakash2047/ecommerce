@@ -15,10 +15,8 @@ public class ProductResponse {
     private Long id;
     private String name;
     private Double price;
-    private Integer stockQuantity;
-    private Boolean active;
+    private Double originalPrice;
+    private Boolean isAvailable;
     private Boolean isEligibleForCoupon;
-    private Double averageRating;
-    private Long reviewCount;
     private LocalDateTime createdAt;
 }

@@ -47,15 +47,14 @@ public class RazorpayUtil {
         try {
             logger.info("Creating Razorpay order for amount: {} INR, order ID: {}", amount, orderId);
             
-            // Create response JSON structure that frontend expects
-            // In production, this would call actual Razorpay API
-            JSONObject razorpayOrder = new JSONObject();
-            razorpayOrder.put("id", "order_" + System.currentTimeMillis());  // Razorpay order ID
-            razorpayOrder.put("amount", amount * 100);  // Amount in paise
-            razorpayOrder.put("currency", "INR");
-            razorpayOrder.put("receipt", orderId);
-            razorpayOrder.put("email", email);
-            razorpayOrder.put("phone", phone);
+            // Prepare order request with order details
+            JSONObject orderRequest = new JSONObject();
+            orderRequest.put("amount", amount * 100);  // Amount in paise
+            orderRequest.put("currency", "INR");
+            orderRequest.put("receipt", orderId);
+            
+            // Call actual Razorpay API using the client
+            JSONObject razorpayOrder = razorpayClient.orders.create(orderRequest).toJson();
             
             logger.info("Successfully created Razorpay order: {}", razorpayOrder.getString("id"));
             return razorpayOrder;
@@ -124,16 +123,16 @@ public class RazorpayUtil {
      * @return JSONObject containing payment details
      * @throws Exception if API call fails
      */
-    public JSONObject fetchPayment(String paymentId) throws Exception {
-        try {
-            logger.info("Fetching payment details for payment ID: {}", paymentId);
-            // Note: Razorpay SDK may vary - adjust based on actual SDK version
-            return new JSONObject();  // Placeholder
-        } catch (Exception e) {
-            logger.error("Failed to fetch payment details for payment ID: {}", paymentId, e);
-            throw e;
-        }
-    }
+//    public JSONObject fetchPayment(String paymentId) throws Exception {
+//        try {
+//            logger.info("Fetching payment details for payment ID: {}", paymentId);
+//            // Note: Razorpay SDK may vary - adjust based on actual SDK version
+//            return new JSONObject();  // Placeholder
+//        } catch (Exception e) {
+//            logger.error("Failed to fetch payment details for payment ID: {}", paymentId, e);
+//            throw e;
+//        }
+//    }
 
     /**
      * Fetch order details from Razorpay API
@@ -144,17 +143,17 @@ public class RazorpayUtil {
      * @return JSONObject containing order details including payment status
      * @throws Exception if API call fails
      */
-    public JSONObject fetchOrder(String razorpayOrderId) throws Exception {
-        try {
-            logger.info("Fetching order details for Razorpay order ID: {}", razorpayOrderId);
-            // TODO: Call Razorpay SDK: razorpayClient.Orders.fetch(razorpayOrderId)
-            // Returns order with payment_id field
-            return new JSONObject();  // Placeholder
-        } catch (Exception e) {
-            logger.error("Failed to fetch order details for Razorpay order ID: {}", razorpayOrderId, e);
-            throw e;
-        }
-    }
+//    public JSONObject fetchOrder(String razorpayOrderId) throws Exception {
+//        try {
+//            logger.info("Fetching order details for Razorpay order ID: {}", razorpayOrderId);
+//            // TODO: Call Razorpay SDK: razorpayClient.Orders.fetch(razorpayOrderId)
+//            // Returns order with payment_id field
+//            return new JSONObject();  // Placeholder
+//        } catch (Exception e) {
+//            logger.error("Failed to fetch order details for Razorpay order ID: {}", razorpayOrderId, e);
+//            throw e;
+//        }
+//    }
 
     /**
      * Check if payment was captured/successful at Razorpay
@@ -163,37 +162,37 @@ public class RazorpayUtil {
      * @param razorpayOrderId Razorpay Order ID
      * @return true if payment is captured, false if pending/failed/not found
      */
-    public boolean isPaymentCaptured(String razorpayOrderId) {
-        try {
-            logger.info("Checking payment status for Razorpay order ID: {}", razorpayOrderId);
-            
-            // Fetch order from Razorpay
-            JSONObject order = fetchOrder(razorpayOrderId);
-            
-            // Check if order has captured payments
-            // In Razorpay, when payment is captured, order status becomes "paid"
-            // and it contains payment_id field
-            
-            if (order.has("payment_id") && !order.isNull("payment_id")) {
-                String paymentId = order.getString("payment_id");
-                
-                // Fetch payment to confirm status
-                JSONObject payment = fetchPayment(paymentId);
-                
-                // Check if payment status is "captured"
-                if (payment.has("status") && "captured".equals(payment.getString("status"))) {
-                    logger.info("Payment CAPTURED for Razorpay order: {}", razorpayOrderId);
-                    return true;
-                }
-            }
-            
-            logger.info("Payment NOT captured for Razorpay order: {}", razorpayOrderId);
-            return false;
-        } catch (Exception e) {
-            logger.error("Error checking payment status for order: {}", razorpayOrderId, e);
-            return false;
-        }
-    }
+//    public boolean isPaymentCaptured(String razorpayOrderId) {
+//        try {
+//            logger.info("Checking payment status for Razorpay order ID: {}", razorpayOrderId);
+//
+//            // Fetch order from Razorpay
+//            JSONObject order = fetchOrder(razorpayOrderId);
+//
+//            // Check if order has captured payments
+//            // In Razorpay, when payment is captured, order status becomes "paid"
+//            // and it contains payment_id field
+//
+//            if (order.has("payment_id") && !order.isNull("payment_id")) {
+//                String paymentId = order.getString("payment_id");
+//
+//                // Fetch payment to confirm status
+//                JSONObject payment = fetchPayment(paymentId);
+//
+//                // Check if payment status is "captured"
+//                if (payment.has("status") && "captured".equals(payment.getString("status"))) {
+//                    logger.info("Payment CAPTURED for Razorpay order: {}", razorpayOrderId);
+//                    return true;
+//                }
+//            }
+//
+//            logger.info("Payment NOT captured for Razorpay order: {}", razorpayOrderId);
+//            return false;
+//        } catch (Exception e) {
+//            logger.error("Error checking payment status for order: {}", razorpayOrderId, e);
+//            return false;
+//        }
+//    }
 
     /**
      * Initiate refund for a payment
@@ -219,4 +218,27 @@ public class RazorpayUtil {
             throw e;
         }
     }
+
+    /**
+     * Capture an authorized payment
+     * Used in payment reconciliation when payment is authorized but not yet captured
+     * 
+     * @param razorpayPaymentId Razorpay Payment ID to capture
+     * @param amount Amount to capture in paise
+     * @throws Exception if capture API call fails
+     */
+//    public void capturePayment(String razorpayPaymentId, Long amount) throws Exception {
+//        try {
+//            logger.info("Attempting to capture authorized payment ID: {} for amount: {} paise",
+//                    razorpayPaymentId, amount);
+//
+//            // TODO: Call Razorpay SDK: razorpayClient.Payments.capture(razorpayPaymentId, amount)
+//
+//            logger.info("Payment captured successfully for payment ID: {}", razorpayPaymentId);
+//        } catch (Exception e) {
+//            logger.error("Failed to capture payment ID: {}. Manual intervention may be needed!",
+//                    razorpayPaymentId, e);
+//            throw e;
+//        }
+//    }
 }

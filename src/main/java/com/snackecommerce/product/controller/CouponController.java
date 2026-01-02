@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,96 +22,99 @@ public class CouponController {
     @Autowired
     private CouponService couponService;
 
-    // ==================== COUPON VALIDATION (PUBLIC) ====================
-
-    @PostMapping("/validate")
-    @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<CouponValidationResponse> validateCoupon(
-            @RequestBody ApplyCouponRequest request) {
-        // This will be used by Cart Controller for coupon validation
-        // Implementation moved to Cart Service
-        return ResponseEntity.ok(null);
-    }
 
     // ==================== ADMIN COUPON MANAGEMENT ====================
 
+    /**
+     * Create a new coupon (admin only)
+     * @param request Coupon creation request
+     * @return Created coupon with 201 status
+     */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CouponResponse> createCoupon(@RequestBody CouponRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(couponService.createCoupon(request));
+    public ResponseEntity<CouponResponse> createCoupon(@Valid @RequestBody CouponRequest request) {
+        CouponResponse coupon = couponService.createCoupon(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(coupon);
     }
 
+    /**
+     * Update an existing coupon (admin only)
+     * @param couponId Coupon ID
+     * @param request Updated coupon request
+     * @return Updated coupon or 404 if not found
+     */
     @PutMapping("/{couponId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CouponResponse> updateCoupon(
             @PathVariable Long couponId,
-            @RequestBody CouponRequest request) {
-        return ResponseEntity.ok(couponService.updateCoupon(couponId, request));
+            @Valid @RequestBody CouponRequest request) {
+        CouponResponse coupon = couponService.updateCoupon(couponId, request);
+        return ResponseEntity.ok(coupon);
     }
 
+    /**
+     * Deactivate a coupon (soft delete) - admin only
+     * @param couponId Coupon ID
+     * @return Success message or 404 if not found
+     */
     @DeleteMapping("/{couponId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deactivateCoupon(@PathVariable Long couponId) {
         couponService.deactivateCoupon(couponId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Coupon deactivated successfully");
+        response.put("status", "success");
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Permanently delete a coupon and all related links (admin only)
+     * @param couponId Coupon ID
+     * @return Success message or 404 if not found
+     */
     @DeleteMapping("/{couponId}/permanent")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteCoupon(@PathVariable Long couponId) {
         couponService.deleteCoupon(couponId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Coupon and all related links deleted permanently");
+        response.put("status", "success");
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Get all coupons (admin only)
+     * @return List of all coupons
+     */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<CouponResponse>> getAllCoupons(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(couponService.getAllCoupons(page, size));
+    public ResponseEntity<List<CouponResponse>> getAllCoupons() {
+        List<CouponResponse> coupons = couponService.getAllCoupons();
+        return ResponseEntity.ok(coupons);
     }
 
-    // ==================== PRODUCT-COUPON LINKING (ADMIN) ====================
-
-    @PostMapping("/{couponId}/products")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> linkProductsToCoupon(
-            @PathVariable Long couponId,
-            @RequestBody List<Long> productIds) {
-        couponService.linkProductsToCoupon(couponId, productIds);
-        Map<String, String> response = new HashMap<>();
-        response.put("message", productIds.size() + " product(s) linked to coupon successfully");
-        return ResponseEntity.ok(response);
-    }
-
-    @DeleteMapping("/{couponId}/products/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> unlinkProductFromCoupon(
-            @PathVariable Long couponId,
-            @PathVariable Long productId) {
-        couponService.unlinkProductFromCoupon(couponId, productId);
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Product unlinked from coupon successfully");
-        return ResponseEntity.ok(response);
-    }
-
+    /**
+     * Get active coupons for a specific product
+     * @param productId Product ID
+     * @return List of active coupons for the product or 404 if product not found
+     */
     @GetMapping("/{productId}/active-coupons")
     public ResponseEntity<List<CouponResponse>> getActiveCouponsForProduct(
             @PathVariable Long productId) {
-        return ResponseEntity.ok(couponService.getActiveCouponsForProduct(productId));
+        List<CouponResponse> coupons = couponService.getActiveCouponsForProduct(productId);
+        return ResponseEntity.ok(coupons);
     }
 
+    /**
+     * Get all products linked to a coupon (admin only)
+     * @param couponId Coupon ID
+     * @return List of products or 404 if coupon not found
+     */
     @GetMapping("/{couponId}/products")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ProductResponse>> getProductsForCoupon(
-            @PathVariable Long couponId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(couponService.getProductsForCoupon(couponId, page, size));
+            @PathVariable Long couponId) {
+        List<ProductResponse> products = couponService.getProductsForCoupon(couponId);
+        return ResponseEntity.ok(products);
     }
 }

@@ -47,9 +47,14 @@ public class Order {
     @Column(name = "cart_id", nullable = true)
     private Long cartId;
 
-    // Address snapshot
-    private String shippingAddress;
-    private String phoneNumber;
+    // Address snapshot reference - store address ID for checkout address
+    @Column(name = "address_id", nullable = true)
+    private Long addressId;
+
+    // Receiver details (order-specific)
+    private String receiverName;
+    private String receiverPhone;
+    private String receiverEmail;
 
     // Tracking
     private String trackingNumber;
@@ -57,14 +62,23 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private TrackingAgent trackingAgent;
 
-    @Version
-    private Long version;  // Optimistic locking for concurrent updates
+    // Shipping label URL (download on-the-fly from Delhivery)
+    private String shippingLabelUrl;
 
-    @Column(updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
 
-    @Column(nullable = true)
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
 
     @PreUpdate
     public void preUpdate() {

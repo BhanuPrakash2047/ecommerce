@@ -23,16 +23,9 @@ public class Product {
 
     private Double originalPrice;
 
-    private Integer stockQuantity;
+    private Boolean isAvailable = true;  // Simple availability flag - no stock limits
 
-    private Integer reservedQuantity = 0;  // Stock reserved for pending payments
-
-    private Boolean active = true;
-
-    private Boolean isEligibleForCoupon = true;  // Controls if product is eligible for coupon systems
-
-    @Version
-    private Long version;  // Optimistic locking for concurrent updates
+    private Boolean isEligibleForCoupon = true;
 
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

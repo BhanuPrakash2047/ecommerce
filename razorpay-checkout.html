@@ -129,7 +129,7 @@
     <script>
         // Configuration
         const API_BASE_URL = 'http://localhost:8080';
-        const RAZORPAY_KEY_ID = 'YOUR_RAZORPAY_PUBLIC_KEY';  // Get from Razorpay dashboard
+        const RAZORPAY_KEY_ID = 'rzp_test_RyEfqhx8DTtt9q';  // Get from Razorpay dashboard
         
         // Global variables to store responses
         let currentValidation = null;
@@ -140,10 +140,10 @@
             console.log('Step 1: Validating checkout...');
             
             try {
-                const response = await fetch(`${API_BASE_URL}/api/cart/validateCheckout`, {
-                    method: 'GET',
+                const response = await fetch(`http://localhost:8080/api/cart/checkout/validate`, {
+                    method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${getToken()}`,
+                        'Authorization': `Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJiaGFudXByYWtzaDY3MEBnbWFpbC5jb20iLCJpYXQiOjE3NjcxNjgxNzQsImV4cCI6MTc2ODAzMjE3NH0.NT6r_T_v0QcaGvDBST87jhDsaEIBK73751L1saORYzza8SxK7_u-e_80K8NbkOM_UkGmoL7jJf7FRmMnP4QEwQ`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -169,10 +169,10 @@
         // ========== Step 2: CONFIRM CHECKOUT ==========
         async function confirmCheckout() {
             // First validate
-            if (!currentValidation || !currentValidation.isValid) {
-                alert('❌ Please validate checkout first!');
-                return;
-            }
+            // if (!currentValidation || !currentValidation.isValid) {
+            //     alert('❌ Please validate checkout first!');
+            //     return;
+            // }
 
             const email = document.getElementById('email').value;
             const phone = document.getElementById('phone').value;
@@ -188,12 +188,12 @@
                 const response = await fetch(`${API_BASE_URL}/api/cart/checkout/confirm`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${getToken()}`,
+                        'Authorization': `Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJiaGFudXByYWtzaDY3MEBnbWFpbC5jb20iLCJpYXQiOjE3NjcxNjgxNzQsImV4cCI6MTc2ODAzMjE3NH0.NT6r_T_v0QcaGvDBST87jhDsaEIBK73751L1saORYzza8SxK7_u-e_80K8NbkOM_UkGmoL7jJf7FRmMnP4QEwQ`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        email: email,
-                        phone: phone
+                        email: "bhanupraksh670@gmail.com",
+                        phone: "+917995369175"
                     })
                 });
 
@@ -285,7 +285,9 @@
                     {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJiaGFudXByYWtzaDY3MEBnbWFpbC5jb20iLCJpYXQiOjE3NjcxNjgxNzQsImV4cCI6MTc2ODAzMjE3NH0.NT6r_T_v0QcaGvDBST87jhDsaEIBK73751L1saORYzza8SxK7_u-e_80K8NbkOM_UkGmoL7jJf7FRmMnP4QEwQ`,
+
                         }
                     }
                 );
@@ -322,6 +324,8 @@
                     {
                         method: 'POST',
                         headers: {
+                            'Authorization': `Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJiaGFudXByYWtzaDY3MEBnbWFpbC5jb20iLCJpYXQiOjE3NjcxNjgxNzQsImV4cCI6MTc2ODAzMjE3NH0.NT6r_T_v0QcaGvDBST87jhDsaEIBK73751L1saORYzza8SxK7_u-e_80K8NbkOM_UkGmoL7jJf7FRmMnP4QEwQ`,
+
                             'Content-Type': 'application/json'
                         }
                     }

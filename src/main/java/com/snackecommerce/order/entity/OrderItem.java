@@ -3,6 +3,7 @@ package com.snackecommerce.order.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,13 +22,18 @@ public class OrderItem {
 
     private String productNameSnapshot;
 
-    private Double unitPriceSnapshot;
+    private BigDecimal unitPriceSnapshot;
 
     private Integer quantity;
 
     @Transient
-    public Double getSubtotal() {
-        return unitPriceSnapshot * quantity;
+    public BigDecimal getSubtotal() {
+        return unitPriceSnapshot.multiply(BigDecimal.valueOf(quantity));
+    }
+
+    @Transient
+    public BigDecimal getUnitPrice() {
+        return unitPriceSnapshot;
     }
 }
 

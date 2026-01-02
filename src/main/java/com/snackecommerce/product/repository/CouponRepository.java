@@ -1,7 +1,12 @@
 package com.snackecommerce.product.repository;
 
+import com.snackecommerce.product.entity.Coupon;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 import java.util.Optional;
 
-public interface CouponRepository extends org.springframework.data.jpa.repository.JpaRepository<com.snackecommerce.product.entity.Coupon, Long> {
-    Optional<Object> findByCode(String code);
+public interface CouponRepository extends JpaRepository<Coupon, Long> {
+    Optional<Coupon> findByCode(String code);
+    List<Coupon> findByActiveTrue();
 }

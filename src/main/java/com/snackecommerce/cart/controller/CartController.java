@@ -3,6 +3,8 @@ package com.snackecommerce.cart.controller;
 import com.snackecommerce.cart.dto.*;
 import com.snackecommerce.cart.service.CartService;
 import com.snackecommerce.user.repository.UserRepository;
+import com.snackecommerce.user.entity.Address;
+import com.snackecommerce.user.repository.AddressRepository;
 import com.snackecommerce.payment.service.PaymentService;
 import com.snackecommerce.payment.dto.CreatePaymentRequest;
 import com.snackecommerce.payment.dto.PaymentResponse;
@@ -26,6 +28,9 @@ public class CartController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AddressRepository addressRepository;
 
     @Autowired
     private PaymentService paymentService;
@@ -170,18 +175,33 @@ public class CartController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
 
-            // Step 2: Get customer details from request
+            // Step 2: Get customer and address details from request
             String email = (String) request.get("email");
             String phone = (String) request.get("phone");
+            Long addressId = ((Number) request.get("id")).longValue();
+            String receiverName = (String) request.get("receiverName");
+            String receiverPhone = (String) request.get("receiverPhone");
+            String receiverEmail = (String) request.get("receiverEmail");
             
-            if (email == null || phone == null) {
+            if (email == null || phone == null || addressId == null || receiverName == null || 
+                receiverPhone == null || receiverEmail == null) {
                 Map<String, String> error = new HashMap<>();
-                error.put("error", "Email and phone are required");
+                error.put("error", "Email, phone, addressId, receiver name, receiver phone, and receiver email are required");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
 
-            // Step 3: Create order from cart (all validations already done)
-            Order order = cartService.proceedToCheckout(userId);
+            // Validate address exists
+            Address address = addressRepository.findById(addressId)
+                    .orElse(null);
+            if (address == null) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Address not found");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
+            // Step 3: Create order from cart with address reference
+            Order order = cartService.proceedToCheckout(userId, addressId, receiverName, 
+                                                        receiverPhone, receiverEmail);
             
             // Step 4: Create Razorpay order and reserve stock
             CreatePaymentRequest paymentRequest = CreatePaymentRequest.builder()

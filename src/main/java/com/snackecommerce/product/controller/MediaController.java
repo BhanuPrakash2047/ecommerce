@@ -25,16 +25,33 @@ public class MediaController {
 
     // ==================== IMAGE UPLOAD/DELETE ====================
 
+    /**
+     * Upload a product image (admin only)
+     * @param productId Product ID
+     * @param file Image file to upload
+     * @param isPrimary Mark as primary image
+     * @return Uploaded image details with 201 status
+     */
     @PostMapping("/images/upload/{productId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductImageResponse> uploadProductImage(
             @PathVariable Long productId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "isPrimary", defaultValue = "false") Boolean isPrimary) throws IOException {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(mediaService.uploadProductImage(productId, file, isPrimary));
+        
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        ProductImageResponse image = mediaService.uploadProductImage(productId, file, isPrimary);
+        return ResponseEntity.status(HttpStatus.CREATED).body(image);
     }
 
+    /**
+     * Download a product image
+     * @param imageId Image ID
+     * @return Image data with proper headers
+     */
     @GetMapping("/images/{imageId}/download")
     public ResponseEntity<byte[]> downloadProductImage(@PathVariable Long imageId) {
         byte[] imageData = mediaService.downloadProductImage(imageId);
@@ -44,17 +61,32 @@ public class MediaController {
                 .body(imageData);
     }
 
+    /**
+     * Delete a product image (admin only)
+     * @param imageId Image ID
+     * @return Success message or 404 if not found
+     */
     @DeleteMapping("/images/{imageId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteProductImage(@PathVariable Long imageId) {
         mediaService.deleteProductImage(imageId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Image deleted successfully");
+        response.put("status", "success");
         return ResponseEntity.ok(response);
     }
 
     // ==================== VIDEO UPLOAD/DELETE ====================
 
+    /**
+     * Upload a product video (admin only)
+     * @param productId Product ID
+     * @param file Video file to upload
+     * @param title Video title
+     * @param description Video description
+     * @param duration Video duration in seconds
+     * @return Uploaded video details with 201 status
+     */
     @PostMapping("/videos/upload/{productId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductVideoResponse> uploadProductVideo(
@@ -63,10 +95,20 @@ public class MediaController {
             @RequestParam("title") String title,
             @RequestParam(value = "description", defaultValue = "") String description,
             @RequestParam(value = "duration", defaultValue = "0") Integer duration) throws IOException {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(mediaService.uploadProductVideo(productId, file, title, description, duration));
+        
+        if (file.isEmpty() || title == null || title.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        ProductVideoResponse video = mediaService.uploadProductVideo(productId, file, title, description, duration);
+        return ResponseEntity.status(HttpStatus.CREATED).body(video);
     }
 
+    /**
+     * Download a product video
+     * @param videoId Video ID
+     * @return Video data with proper headers
+     */
     @GetMapping("/videos/{videoId}/download")
     public ResponseEntity<byte[]> downloadProductVideo(@PathVariable Long videoId) {
         byte[] videoData = mediaService.downloadProductVideo(videoId);
@@ -76,12 +118,18 @@ public class MediaController {
                 .body(videoData);
     }
 
+    /**
+     * Delete a product video (admin only)
+     * @param videoId Video ID
+     * @return Success message or 404 if not found
+     */
     @DeleteMapping("/videos/{videoId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteProductVideo(@PathVariable Long videoId) {
         mediaService.deleteProductVideo(videoId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Video deleted successfully");
+        response.put("status", "success");
         return ResponseEntity.ok(response);
     }
 }
