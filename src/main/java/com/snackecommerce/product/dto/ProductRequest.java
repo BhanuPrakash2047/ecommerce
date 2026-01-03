@@ -5,14 +5,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class ProductRequest {
     private String name;
-    private Double price;
-    private Double originalPrice;
+    private BigDecimal price;
+    private BigDecimal originalPrice;
     private Boolean isAvailable;
     private Boolean isEligibleForCoupon;
 }

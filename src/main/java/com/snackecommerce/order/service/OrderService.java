@@ -148,7 +148,7 @@ public class OrderService {
                 Coupon c = coupon.get();
                 couponCode = c.getCode();
                 discountType = c.getType().toString();
-                discountValue = BigDecimal.valueOf(c.getDiscountValue() != null ? c.getDiscountValue() : 0);
+                discountValue = c.getDiscountValue() != null ? c.getDiscountValue() : BigDecimal.ZERO;
             }
         }
         

@@ -4,6 +4,9 @@ import com.snackecommerce.delivery.service.DeliveryService;
 import com.snackecommerce.order.entity.ShipmentJob;
 import com.snackecommerce.order.enums.ShipmentJobStatus;
 import com.snackecommerce.order.repository.ShipmentJobRepository;
+import com.snackecommerce.notification.service.NotificationService;
+import com.snackecommerce.order.repository.OrderRepository;
+import com.snackecommerce.order.entity.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,12 @@ public class ShipmentJobService {
 
     @Autowired
     private DeliveryService deliveryService;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private OrderRepository orderRepository;
 
     /**
      * Save a failed shipment creation as a retry job
@@ -92,7 +101,26 @@ public class ShipmentJobService {
                 if (job.getStatus() == ShipmentJobStatus.FAILED) {
                     logger.error("Shipment job marked FAILED for order {} after {} attempts", 
                                job.getOrderId(), job.getAttempts());
-                    // TODO: Send alert to ops/admin about failed shipment
+                    
+                    // Send admin alert notification about failed shipment
+                    try {
+                        Order order = orderRepository.findById(job.getOrderId()).orElse(null);
+                        if (order != null) {
+                            // Assuming admin user ID is 1 (or get from config/settings)
+                            // In production, you might want to send to all admins or a specific ops user
+                            Long adminUserId = 1L; // TODO: Make this configurable
+                            notificationService.notifyAdminShipmentFailure(
+                                adminUserId,
+                                order.getId(),
+                                order.getOrderNumber(),
+                                job.getAttempts(),
+                                job.getLastError()
+                            );
+                            logger.info("Admin notification sent for failed shipment (order {})", job.getOrderId());
+                        }
+                    } catch (Exception ex) {
+                        logger.error("Failed to send admin notification for shipment failure: {}", ex.getMessage());
+                    }
                 }
             }
         }

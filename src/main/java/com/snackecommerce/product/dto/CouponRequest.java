@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import com.snackecommerce.product.entity.Coupon.CouponType;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -23,10 +24,10 @@ public class CouponRequest {
 
     @NotNull(message = "Discount value is required")
     @Positive(message = "Discount value must be positive")
-    private Double discountValue;  // Rupees for FLAT, percentage for PERCENTAGE
+    private BigDecimal discountValue;  // Rupees for FLAT, percentage for PERCENTAGE
 
     @PositiveOrZero(message = "Minimum order amount must be zero or positive")
-    private Double minOrderAmount;  // Minimum cart total required (e.g., 500 for min ₹500)
+    private BigDecimal minOrderAmount;  // Minimum cart total required (e.g., 500 for min ₹500)
 
     @NotNull(message = "Valid from date is required")
     private LocalDateTime validFrom;

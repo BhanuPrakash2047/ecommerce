@@ -3,6 +3,7 @@ package com.snackecommerce.product.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,9 +22,9 @@ public class Coupon {
     @Enumerated(EnumType.STRING)
     private CouponType type;  // FLAT or PERCENTAGE
 
-    private Double discountValue;  // Amount in rupees for FLAT, percentage for PERCENTAGE (e.g., 25 for 25%)
+    private BigDecimal discountValue;  // Amount in rupees for FLAT, percentage for PERCENTAGE (e.g., 25 for 25%)
 
-    private Double minOrderAmount;  // Minimum cart total required to apply this coupon (e.g., 500 means min ₹500)
+    private BigDecimal minOrderAmount;  // Minimum cart total required to apply this coupon (e.g., 500 means min ₹500)
 
     @Builder.Default
     private Boolean active = true;

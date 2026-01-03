@@ -4,6 +4,7 @@ package com.snackecommerce.product.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 
@@ -19,9 +20,9 @@ public class Product {
 
     private String name;
 
-    private Double price;
+    private BigDecimal price;
 
-    private Double originalPrice;
+    private BigDecimal originalPrice;
 
     private Boolean isAvailable = true;  // Simple availability flag - no stock limits
 

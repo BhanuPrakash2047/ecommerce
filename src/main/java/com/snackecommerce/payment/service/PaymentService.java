@@ -19,6 +19,7 @@ import com.snackecommerce.payment.util.RazorpayUtil;
 import com.snackecommerce.product.entity.Coupon;
 import com.snackecommerce.product.repository.CouponRepository;
 import com.snackecommerce.delivery.service.DeliveryService;
+import com.snackecommerce.notification.service.NotificationService;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -61,6 +62,9 @@ public class PaymentService {
 
     @Autowired
     private ShipmentJobService shipmentJobService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Create payment order for checkout
@@ -154,6 +158,19 @@ public class PaymentService {
         // Clear cart
         clearUserCart(order.getUserId());
         logger.info("Cart cleared for user ID: {}", order.getUserId());
+
+        // Send notification to user: Payment received, order processing
+        try {
+            notificationService.notifyPaymentReceived(
+                order.getUserId(),
+                order.getId(),
+                order.getOrderNumber(),
+                order.getTotalAmount()
+            );
+            logger.info("Notification sent to user {} for payment received", order.getUserId());
+        } catch (Exception e) {
+            logger.error("Failed to send notification for payment received: {}", e.getMessage());
+        }
 
         // Create shipment on Delhivery
         try {
@@ -270,6 +287,19 @@ public class PaymentService {
         // Clear cart
         clearUserCart(order.getUserId());
         logger.info("Cart cleared for user ID: {}", order.getUserId());
+
+        // Send notification to user: Payment received, order processing
+        try {
+            notificationService.notifyPaymentReceived(
+                order.getUserId(),
+                order.getId(),
+                order.getOrderNumber(),
+                order.getTotalAmount()
+            );
+            logger.info("Notification sent to user {} for manual payment approval", order.getUserId());
+        } catch (Exception e) {
+            logger.error("Failed to send notification for payment received: {}", e.getMessage());
+        }
 
         // Create shipment on Delhivery
         try {

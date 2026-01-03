@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -14,8 +15,8 @@ import java.time.LocalDateTime;
 public class ProductResponse {
     private Long id;
     private String name;
-    private Double price;
-    private Double originalPrice;
+    private BigDecimal price;
+    private BigDecimal originalPrice;
     private Boolean isAvailable;
     private Boolean isEligibleForCoupon;
     private LocalDateTime createdAt;

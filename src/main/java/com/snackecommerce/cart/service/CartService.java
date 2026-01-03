@@ -87,7 +87,7 @@ public class CartService {
             throw new InvalidCartItemException("Product is not available: " + product.getName());
         }
 
-        BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
+        BigDecimal currentPrice = product.getPrice();
 
         // Check if product already in cart
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), request.getProductId());
@@ -174,7 +174,7 @@ public class CartService {
         Product product = productRepository.findById(item.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found"));
 
-        BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
+        BigDecimal currentPrice = product.getPrice();
         List<String> alerts = new ArrayList<>();
 
         if (!item.getSnapshotPrice().equals(currentPrice)) {
@@ -255,7 +255,7 @@ public class CartService {
             // If product is coupon-eligible, add to subtotal
             if (product != null && product.getIsEligibleForCoupon()) {
                 hasCouponEligibleProducts = true;
-                BigDecimal itemAmount = BigDecimal.valueOf(item.getSnapshotPrice().doubleValue() * item.getQuantity());
+                BigDecimal itemAmount = item.getSnapshotPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
                 eligibleSubtotal = eligibleSubtotal.add(itemAmount);
             }
         }
@@ -281,7 +281,7 @@ public class CartService {
 
             // Check 3: Does eligible subtotal meet minimum amount required?
             if (ineligibilityReason == null && coupon.getMinOrderAmount() != null) {
-                if (eligibleSubtotal.doubleValue() < coupon.getMinOrderAmount()) {
+                if (eligibleSubtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
                     ineligibilityReason = "Minimum order amount ₹" + coupon.getMinOrderAmount() + " required";
                 }
             }
@@ -295,18 +295,18 @@ public class CartService {
                         .build());
             } else {
                 // Calculate actual discount based on coupon type and eligible subtotal
-                Double discountForDisplay;
+                BigDecimal discountForDisplay;
                 if ("FLAT".equals(coupon.getType().toString())) {
                     discountForDisplay = coupon.getDiscountValue();
                 } else {
                     // PERCENTAGE type
-                    discountForDisplay = (eligibleSubtotal.doubleValue() * coupon.getDiscountValue()) / 100;
+                    discountForDisplay = eligibleSubtotal.multiply(coupon.getDiscountValue()).divide(BigDecimal.valueOf(100));
                 }
                 
                 eligible.add(EligibleCouponsResponse.CouponOption.builder()
                         .couponId(coupon.getId())
                         .code(coupon.getCode())
-                        .discountAmount(BigDecimal.valueOf(discountForDisplay))
+                        .discountAmount(discountForDisplay)
                         .isEligible(true)
                         .build());
             }
@@ -333,13 +333,13 @@ public class CartService {
 
         // Calculate subtotal and validate minimum order amount
         BigDecimal subtotal = calculateSubtotal(cart);
-        couponService.validateCouponEligibility(coupon, subtotal.doubleValue());
+        couponService.validateCouponEligibility(coupon, subtotal);
 
         // Calculate discount based on type (FLAT or PERCENTAGE)
-        Double discountAmount = couponService.calculateDiscount(coupon, subtotal.doubleValue());
+        BigDecimal discountAmount = couponService.calculateDiscount(coupon, subtotal);
 
         cart.setAppliedCouponId(coupon.getId());
-        cart.setDiscountAmount(BigDecimal.valueOf(discountAmount));
+        cart.setDiscountAmount(discountAmount);
         cart.setUpdatedAt(LocalDateTime.now());
         cartRepository.save(cart);
 
@@ -403,7 +403,7 @@ public class CartService {
                 continue;
             }
 
-            BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
+            BigDecimal currentPrice = product.getPrice();
             BigDecimal itemTotal = currentPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
 
             validatedItems.add(CartItemResponse.builder()
@@ -443,7 +443,7 @@ public class CartService {
         // Validate minimum order amount for applied coupon
         if (cart.getAppliedCouponId() != null) {
             Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
-            if (coupon != null && coupon.getMinOrderAmount() != null && subtotal.doubleValue() < coupon.getMinOrderAmount()) {
+            if (coupon != null && coupon.getMinOrderAmount() != null && subtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
                 issues.add("Cart amount (₹" + subtotal + ") is below minimum required (₹" + coupon.getMinOrderAmount() + ") for coupon: " + coupon.getCode());
                 cart.setAppliedCouponId(null);
                 cart.setDiscountAmount(BigDecimal.ZERO);
@@ -507,12 +507,12 @@ public class CartService {
             OrderItem orderItem = OrderItem.builder()
                     .productId(product.getId())
                     .productNameSnapshot(product.getName())
-                    .unitPriceSnapshot(BigDecimal.valueOf(product.getPrice()))
+                    .unitPriceSnapshot(product.getPrice())
                     .quantity(cartItem.getQuantity())
                     .build();
             orderItems.add(orderItem);
 
-            subtotal = subtotal.add(BigDecimal.valueOf(product.getPrice() * cartItem.getQuantity()));
+            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
         }
 
         BigDecimal discountAmount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
@@ -565,7 +565,7 @@ public class CartService {
                 continue;
             }
 
-            BigDecimal currentPrice = BigDecimal.valueOf(product.getPrice());
+            BigDecimal currentPrice = product.getPrice();
             BigDecimal itemTotal = currentPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
 
             itemResponses.add(CartItemResponse.builder()
@@ -605,7 +605,7 @@ public class CartService {
         for (CartItem item : cartItems) {
             Product product = productRepository.findById(item.getProductId())
                     .orElseThrow(() -> new ProductNotFoundException("Product not found: " + item.getProductId()));
-            BigDecimal itemTotal = BigDecimal.valueOf(product.getPrice() * item.getQuantity());
+            BigDecimal itemTotal = product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
             subtotal = subtotal.add(itemTotal);
         }
         
@@ -645,7 +645,7 @@ public class CartService {
 
             // Check minimum order amount eligibility
             BigDecimal currentSubtotal = calculateSubtotal(cart);
-            if (coupon.getMinOrderAmount() != null && currentSubtotal.doubleValue() < coupon.getMinOrderAmount()) {
+            if (coupon.getMinOrderAmount() != null && currentSubtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
                 cart.setAppliedCouponId(null);
                 cart.setDiscountAmount(BigDecimal.ZERO);
                 cartRepository.save(cart);

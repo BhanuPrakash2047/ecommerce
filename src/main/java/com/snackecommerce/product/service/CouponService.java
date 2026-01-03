@@ -45,7 +45,7 @@ public class CouponService {
         }
 
         // Validate discount value based on type
-        if (request.getType() == CouponType.PERCENTAGE && request.getDiscountValue() > 100) {
+        if (request.getType() == CouponType.PERCENTAGE && request.getDiscountValue().compareTo(new java.math.BigDecimal(100)) > 0) {
             throw new InvalidCouponStateException("Percentage discount cannot exceed 100%");
         }
 
@@ -53,7 +53,7 @@ public class CouponService {
                 .code(request.getCode().toUpperCase())
                 .type(request.getType())
                 .discountValue(request.getDiscountValue())
-                .minOrderAmount(request.getMinOrderAmount() != null ? request.getMinOrderAmount() : 0.0)
+                .minOrderAmount(request.getMinOrderAmount() != null ? request.getMinOrderAmount() : java.math.BigDecimal.ZERO)
                 .validFrom(request.getValidFrom())
                 .validTill(request.getValidTill())
                 .active(true)
@@ -63,7 +63,7 @@ public class CouponService {
         String discountDesc = request.getType() == CouponType.FLAT 
             ? "₹" + request.getDiscountValue()
             : request.getDiscountValue() + "%";
-        String minAmountDesc = coupon.getMinOrderAmount() > 0 ? " (Min: ₹" + coupon.getMinOrderAmount() + ")" : "";
+        String minAmountDesc = coupon.getMinOrderAmount().compareTo(java.math.BigDecimal.ZERO) > 0 ? " (Min: ₹" + coupon.getMinOrderAmount() + ")" : "";
         logger.info("Coupon created: {} with discount: {}{}", coupon.getCode(), discountDesc, minAmountDesc);
         return mapToResponse(coupon);
     }
@@ -89,7 +89,7 @@ public class CouponService {
         }
 
         if (request.getDiscountValue() != null) {
-            if (request.getType() == CouponType.PERCENTAGE && request.getDiscountValue() > 100) {
+            if (request.getType() == CouponType.PERCENTAGE && request.getDiscountValue().compareTo(new java.math.BigDecimal(100)) > 0) {
                 throw new InvalidCouponStateException("Percentage discount cannot exceed 100%");
             }
             coupon.setDiscountValue(request.getDiscountValue());
@@ -149,12 +149,12 @@ public class CouponService {
      * @param cartTotal The total cart amount
      * @return Discount amount in rupees
      */
-    public Double calculateDiscount(Coupon coupon, Double cartTotal) {
+    public java.math.BigDecimal calculateDiscount(Coupon coupon, java.math.BigDecimal cartTotal) {
         if (coupon.getType() == CouponType.FLAT) {
             return coupon.getDiscountValue();
         } else {
             // PERCENTAGE: Calculate percentage of cart total
-            return (cartTotal * coupon.getDiscountValue()) / 100;
+            return cartTotal.multiply(coupon.getDiscountValue()).divide(new java.math.BigDecimal(100), 2, java.math.RoundingMode.HALF_UP);
         }
     }
 
@@ -164,8 +164,8 @@ public class CouponService {
      * @param cartTotal The current cart total
      * @throws InvalidCouponStateException if minimum order amount is not met
      */
-    public void validateCouponEligibility(Coupon coupon, Double cartTotal) {
-        if (coupon.getMinOrderAmount() != null && cartTotal < coupon.getMinOrderAmount()) {
+    public void validateCouponEligibility(Coupon coupon, java.math.BigDecimal cartTotal) {
+        if (coupon.getMinOrderAmount() != null && cartTotal.compareTo(coupon.getMinOrderAmount()) < 0) {
             throw new InvalidCouponStateException(
                 "Minimum order amount of ₹" + coupon.getMinOrderAmount() + " required. Current cart: ₹" + cartTotal
             );

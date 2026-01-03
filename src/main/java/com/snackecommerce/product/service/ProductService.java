@@ -105,8 +105,10 @@ public class ProductService {
 
     // Stub methods for complex filtering (not implemented in simplified architecture)
     public List<ProductResponse> filterProducts(Double minPrice, Double maxPrice, int page, int size) {
+        java.math.BigDecimal min = java.math.BigDecimal.valueOf(minPrice);
+        java.math.BigDecimal max = java.math.BigDecimal.valueOf(maxPrice);
         return productRepository.findAll().stream()
-                .filter(p -> p.getPrice() >= minPrice && p.getPrice() <= maxPrice)
+                .filter(p -> p.getPrice().compareTo(min) >= 0 && p.getPrice().compareTo(max) <= 0)
                 .skip((long) page * size)
                 .limit(size)
                 .map(this::mapToResponse)
@@ -123,9 +125,11 @@ public class ProductService {
     }
 
     public List<ProductResponse> searchByNameAndPrice(String name, Double minPrice, Double maxPrice, int page, int size) {
+        java.math.BigDecimal min = java.math.BigDecimal.valueOf(minPrice);
+        java.math.BigDecimal max = java.math.BigDecimal.valueOf(maxPrice);
         return productRepository.findAll().stream()
                 .filter(p -> p.getName().toLowerCase().contains(name.toLowerCase()))
-                .filter(p -> p.getPrice() >= minPrice && p.getPrice() <= maxPrice)
+                .filter(p -> p.getPrice().compareTo(min) >= 0 && p.getPrice().compareTo(max) <= 0)
                 .skip((long) page * size)
                 .limit(size)
                 .map(this::mapToResponse)

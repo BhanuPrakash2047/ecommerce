@@ -10,6 +10,7 @@ import com.snackecommerce.order.enums.TrackingAgent;
 import com.snackecommerce.order.repository.OrderRepository;
 import com.snackecommerce.user.entity.Address;
 import com.snackecommerce.user.repository.AddressRepository;
+import com.snackecommerce.notification.service.NotificationService;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,9 @@ public class DeliveryService {
 
     @Autowired
     private DelhiveryUtil delhiveryUtil;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Create shipment on Delhivery for an order
@@ -101,6 +105,21 @@ public class DeliveryService {
 
             logger.info("Shipment created for order {} with waybill: {} and label URL: {}", 
                        orderId, waybill, labelUrl);
+
+            // Send notification to user: Shipment created with tracking
+            try {
+                notificationService.notifyShipmentCreated(
+                    order.getUserId(),
+                    order.getId(),
+                    order.getOrderNumber(),
+                    waybill,
+                    labelUrl
+                );
+                logger.info("Notification sent to user {} for shipment created", order.getUserId());
+            } catch (Exception e) {
+                logger.error("Failed to send shipment notification: {}", e.getMessage());
+            }
+
             return waybill;
         } catch (Exception e) {
             logger.error("Failed to create shipment for order {}", orderId, e);
