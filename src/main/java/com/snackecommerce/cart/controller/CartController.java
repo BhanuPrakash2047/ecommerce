@@ -5,6 +5,7 @@ import com.snackecommerce.cart.service.CartService;
 import com.snackecommerce.user.repository.UserRepository;
 import com.snackecommerce.user.entity.Address;
 import com.snackecommerce.user.repository.AddressRepository;
+import com.snackecommerce.user.service.AddressService;
 import com.snackecommerce.payment.service.PaymentService;
 import com.snackecommerce.payment.dto.CreatePaymentRequest;
 import com.snackecommerce.payment.dto.PaymentResponse;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -31,6 +33,9 @@ public class CartController {
 
     @Autowired
     private AddressRepository addressRepository;
+
+    @Autowired
+    private AddressService addressService;
 
     @Autowired
     private PaymentService paymentService;
@@ -156,7 +161,7 @@ public class CartController {
      * 4. Create Razorpay order and reserve stock
      * 5. Return Razorpay payment details to frontend
      * 
-     * Request: { "email": "user@example.com", "phone": "9876543210" }
+     * Request: { "email": "userexample.com", "phone": "9876543210" }
      * Response: { "razorpayOrderId": "order_ABC123", "amount": 5000, "orderId": 1, ... }
      */
     @PostMapping("/checkout/confirm")
@@ -196,6 +201,15 @@ public class CartController {
             if (address == null) {
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Address not found");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
+            // Validate pincode reachability for checkout
+            if (address.getPincodeReachable() == null || !address.getPincodeReachable()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Pincode is not serviceable for delivery");
+                error.put("pincode", address.getZipCode());
+                error.put("suggestion", "Check pincode reachability using GET /api/address/check-pincode?pincode=" + address.getZipCode());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
 

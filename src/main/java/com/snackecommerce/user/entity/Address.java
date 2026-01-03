@@ -32,6 +32,10 @@ public class Address {
 
     private Boolean isDefault = false;
 
+    private Boolean pincodeReachable;
+
+    private LocalDateTime lastCheckedAt;
+
     @Column(updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

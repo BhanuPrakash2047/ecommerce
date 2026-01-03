@@ -8,6 +8,7 @@ import com.snackecommerce.order.entity.Order;
 import com.snackecommerce.order.enums.OrderStatus;
 import com.snackecommerce.order.repository.OrderItemRepository;
 import com.snackecommerce.order.repository.OrderRepository;
+import com.snackecommerce.order.service.ShipmentJobService;
 import com.snackecommerce.payment.dto.CreatePaymentRequest;
 import com.snackecommerce.payment.dto.PaymentResponse;
 import com.snackecommerce.payment.entity.Payment;
@@ -30,7 +31,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
-@Transactional
 public class PaymentService {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentService.class);
@@ -59,9 +59,13 @@ public class PaymentService {
     @Autowired
     private DeliveryService deliveryService;
 
+    @Autowired
+    private ShipmentJobService shipmentJobService;
+
     /**
      * Create payment order for checkout
      */
+    @Transactional
     public PaymentResponse createPayment(CreatePaymentRequest request) throws Exception {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new CartNotFoundException("Order not found with ID: " + request.getOrderId()));
@@ -110,6 +114,7 @@ public class PaymentService {
     /**
      * Handle successful payment webhook
      */
+    @Transactional
     public void handlePaymentSuccess(String razorpayOrderId, String razorpayPaymentId, String signature) throws Exception {
         logger.info("Processing payment success webhook for Razorpay order: {}", razorpayOrderId);
 
@@ -155,15 +160,17 @@ public class PaymentService {
             String waybill = deliveryService.createShipment(order.getId());
             logger.info("Shipment created successfully for order ID: {} with waybill: {}", order.getId(), waybill);
         } catch (Exception e) {
-            logger.error("Failed to create shipment for order ID: {}", order.getId(), e);
-            // Don't throw - allow order to remain confirmed even if shipment creation fails
-            // Admin can manually retry
+            logger.error("Failed to create shipment for order ID: {}. Saving to retry queue.", order.getId(), e);
+            // Save failed shipment as a retry job - will be retried automatically by scheduler
+            shipmentJobService.saveFailedShipment(order.getId(), e.getMessage());
+            logger.info("Shipment job created for order {} - will retry automatically", order.getId());
         }
     }
 
     /**
      * Handle failed payment webhook
      */
+    @Transactional
     public void handlePaymentFailure(String razorpayOrderId, String razorpayPaymentId) throws Exception {
         logger.info("Processing payment failure webhook for Razorpay order: {}", razorpayOrderId);
 
@@ -224,6 +231,90 @@ public class PaymentService {
             cartRepository.save(cart);
             logger.info("Cart cleared for user ID: {}", userId);
         }
+    }
+
+    /**
+     * Manual payment success handler (for admin override when webhook fails)
+     * Does NOT verify Razorpay signature - admin manually verifies in Razorpay dashboard
+     * 
+     * @param orderId Order ID
+     * @throws Exception if order/payment not found
+     */
+    @Transactional
+    public void manualMarkPaymentSuccess(Long orderId) throws Exception {
+        logger.info("Admin: Manually marking payment as SUCCESS for order ID: {}", orderId);
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CartNotFoundException("Order not found with ID: " + orderId));
+
+        // Find payment record for this order
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new RuntimeException("Payment not found for order ID: " + orderId));
+
+        if (payment.getStatus().equals(PaymentStatus.SUCCESS)) {
+            logger.info("Payment already marked SUCCESS for order: {}", orderId);
+            return;
+        }
+
+        // Mark payment as success
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setConfirmedAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+        logger.info("Payment manually marked SUCCESS for order: {}", orderId);
+
+        // Mark order as confirmed
+        order.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
+        logger.info("Order manually marked CONFIRMED for order ID: {}", orderId);
+
+        // Clear cart
+        clearUserCart(order.getUserId());
+        logger.info("Cart cleared for user ID: {}", order.getUserId());
+
+        // Create shipment on Delhivery
+        try {
+            String waybill = deliveryService.createShipment(order.getId());
+            logger.info("Shipment created successfully for order ID: {} with waybill: {}", order.getId(), waybill);
+        } catch (Exception e) {
+            logger.error("Failed to create shipment for order ID: {}. Saving to retry queue.", order.getId(), e);
+            // Save failed shipment as a retry job - will be retried automatically by scheduler
+            shipmentJobService.saveFailedShipment(order.getId(), e.getMessage());
+            logger.info("Shipment job created for order {} - will retry automatically", order.getId());
+        }
+    }
+
+    /**
+     * Manual payment failure handler (for admin override when webhook fails)
+     * Does NOT verify anything - admin manually confirms payment failed in Razorpay dashboard
+     * 
+     * @param orderId Order ID
+     * @throws Exception if order/payment not found
+     */
+    @Transactional
+    public void manualMarkPaymentFailed(Long orderId) throws Exception {
+        logger.info("Admin: Manually marking payment as FAILED for order ID: {}", orderId);
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CartNotFoundException("Order not found with ID: " + orderId));
+
+        // Find payment record for this order
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new RuntimeException("Payment not found for order ID: " + orderId));
+
+        if (payment.getStatus().equals(PaymentStatus.FAILED)) {
+            logger.info("Payment already marked FAILED for order: {}", orderId);
+            return;
+        }
+
+        // Mark payment as failed
+        payment.setStatus(PaymentStatus.FAILED);
+        paymentRepository.save(payment);
+        logger.info("Payment manually marked FAILED for order: {}", orderId);
+
+        // Mark order as cancelled
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        logger.info("Order manually marked CANCELLED for order ID: {}", orderId);
     }
 
 }
