@@ -288,8 +288,15 @@ public class CartService {
 
             if (ineligibilityReason != null) {
                 ineligible.add(EligibleCouponsResponse.CouponOption.builder()
-                        .couponId(coupon.getId())
+                        .id(coupon.getId())
                         .code(coupon.getCode())
+                        .description(coupon.getCode() + " - " + coupon.getType() + " coupon")
+                        .discountValue(coupon.getDiscountValue())
+                        .type(coupon.getType().toString())
+                        .minOrderAmount(coupon.getMinOrderAmount())
+                        .active(coupon.getActive())
+                        .validFrom(coupon.getValidFrom())
+                        .validTill(coupon.getValidTill())
                         .isEligible(false)
                         .reason(ineligibilityReason)
                         .build());
@@ -304,9 +311,15 @@ public class CartService {
                 }
                 
                 eligible.add(EligibleCouponsResponse.CouponOption.builder()
-                        .couponId(coupon.getId())
+                        .id(coupon.getId())
                         .code(coupon.getCode())
-                        .discountAmount(discountForDisplay)
+                        .description(coupon.getCode() + " - Save ₹" + discountForDisplay)
+                        .discountValue(coupon.getDiscountValue())
+                        .type(coupon.getType().toString())
+                        .minOrderAmount(coupon.getMinOrderAmount())
+                        .active(coupon.getActive())
+                        .validFrom(coupon.getValidFrom())
+                        .validTill(coupon.getValidTill())
                         .isEligible(true)
                         .build());
             }
@@ -581,8 +594,23 @@ public class CartService {
             subtotal = subtotal.add(itemTotal);
         }
 
-        BigDecimal discount = cart.getDiscountAmount() != null ? cart.getDiscountAmount() : BigDecimal.ZERO;
+        // Calculate FRESH discount on-the-fly based on current cart subtotal
+        // This ensures discount is always accurate even if quantities changed
+        BigDecimal discount = calculateFreshDiscount(cart, alerts);
         BigDecimal total = subtotal.subtract(discount);
+
+        // Get applied coupon code for response
+        String appliedCouponCode = null;
+        if (cart.getAppliedCouponId() != null) {
+            try {
+                Coupon coupon = couponRepository.findById(cart.getAppliedCouponId()).orElse(null);
+                if (coupon != null) {
+                    appliedCouponCode = coupon.getCode();
+                }
+            } catch (Exception e) {
+                logger.warn("Error fetching applied coupon code", e);
+            }
+        }
 
         return CartResponse.builder()
                 .cartId(cart.getId())
@@ -592,6 +620,7 @@ public class CartService {
                 .discountAmount(discount)
                 .total(total)
                 .appliedCouponId(cart.getAppliedCouponId())
+                .appliedCouponCode(appliedCouponCode)
                 .alerts(alerts)
                 .build();
     }
@@ -610,6 +639,58 @@ public class CartService {
         }
         
         return subtotal;
+    }
+
+    /**
+     * Calculate fresh discount amount on-the-fly based on current cart subtotal.
+     * Validates coupon eligibility and removes it if no longer valid.
+     * Returns zero if coupon is no longer eligible.
+     */
+    private BigDecimal calculateFreshDiscount(Cart cart, List<String> alerts) {
+        if (cart.getAppliedCouponId() == null) {
+            return BigDecimal.ZERO; // No coupon applied
+        }
+
+        try {
+            Coupon coupon = couponRepository.findById(cart.getAppliedCouponId())
+                    .orElse(null);
+
+            if (coupon == null) {
+                // Coupon was deleted, remove it from cart
+                cart.setAppliedCouponId(null);
+                cartRepository.save(cart);
+                alerts.add("Applied coupon no longer available. Removed from cart");
+                return BigDecimal.ZERO;
+            }
+
+            // Check if coupon is still active and not expired
+            if (!coupon.getActive() || coupon.getValidTill().isBefore(LocalDateTime.now())) {
+                cart.setAppliedCouponId(null);
+                cartRepository.save(cart);
+                alerts.add("Applied coupon is no longer active or has expired. Removed from cart");
+                return BigDecimal.ZERO;
+            }
+
+            // Calculate current subtotal
+            BigDecimal currentSubtotal = calculateSubtotal(cart);
+            
+            // Check minimum order amount eligibility
+            if (coupon.getMinOrderAmount() != null && currentSubtotal.compareTo(coupon.getMinOrderAmount()) < 0) {
+                cart.setAppliedCouponId(null);
+                cartRepository.save(cart);
+                alerts.add("Cart amount (₹" + currentSubtotal + ") below minimum (₹" + coupon.getMinOrderAmount() + ") for coupon. Removed");
+                return BigDecimal.ZERO;
+            }
+
+            // Calculate fresh discount based on CURRENT subtotal
+            BigDecimal freshDiscount = couponService.calculateDiscount(coupon, currentSubtotal);
+            return freshDiscount;
+            
+        } catch (Exception e) {
+            // Log error but don't fail the operation
+            logger.warn("Error calculating fresh coupon discount", e);
+            return BigDecimal.ZERO;
+        }
     }
 
     /**

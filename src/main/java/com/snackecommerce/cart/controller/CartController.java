@@ -165,7 +165,7 @@ public class CartController {
      * Response: { "razorpayOrderId": "order_ABC123", "amount": 5000, "orderId": 1, ... }
      */
     @PostMapping("/checkout/confirm")
-    public ResponseEntity<?> confirmCheckout(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<?> confirmCheckout(@RequestParam Long id) {
         try {
             Long userId = getCurrentUserId();
             
@@ -181,15 +181,14 @@ public class CartController {
             }
 
             // Step 2: Get customer and address details from request
-            String email = (String) request.get("email");
-            String phone = (String) request.get("phone");
-            Long addressId = ((Number) request.get("id")).longValue();
-            String receiverName = (String) request.get("receiverName");
-            String receiverPhone = (String) request.get("receiverPhone");
-            String receiverEmail = (String) request.get("receiverEmail");
+            String email = getCurrentUserEmail();
+            String phone = "+917995369175"; // (String) request.get("phone");
+            Long addressId = id;
+            String receiverName = "";
+            String receiverPhone = "";
+            String receiverEmail = "";
             
-            if (email == null || phone == null || addressId == null || receiverName == null || 
-                receiverPhone == null || receiverEmail == null) {
+            if (email == null || phone == null || addressId == null) {
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Email, phone, addressId, receiver name, receiver phone, and receiver email are required");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -203,15 +202,25 @@ public class CartController {
                 error.put("error", "Address not found");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
+            receiverName = address.getFullName();
+            receiverPhone = address.getPhoneNumber();
+            receiverEmail = email;
 
-            // Validate pincode reachability for checkout
-            if (address.getPincodeReachable() == null || !address.getPincodeReachable()) {
+            if ( receiverName == null ||
+                    receiverPhone == null ) {
                 Map<String, String> error = new HashMap<>();
-                error.put("error", "Pincode is not serviceable for delivery");
-                error.put("pincode", address.getZipCode());
-                error.put("suggestion", "Check pincode reachability using GET /api/address/check-pincode?pincode=" + address.getZipCode());
+                error.put("error", "Email, phone, addressId, receiver name, receiver phone, and receiver email are required");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
+
+//            // Validate pincode reachability for checkout
+//            if (address.getPincodeReachable() == null || !address.getPincodeReachable()) {
+//                Map<String, String> error = new HashMap<>();
+//                error.put("error", "Pincode is not serviceable for delivery");
+//                error.put("pincode", address.getZipCode());
+//                error.put("suggestion", "Check pincode reachability using GET /api/address/check-pincode?pincode=" + address.getZipCode());
+//                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+//            }
 
             // Step 3: Create order from cart with address reference
             Order order = cartService.proceedToCheckout(userId, addressId, receiverName, 
@@ -259,6 +268,10 @@ public class CartController {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found with email: " + email))
                 .getId();
+    }
+    private String getCurrentUserEmail() {
+        // Extract email from security context (set by JwtAuthenticationFilter)
+        return (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
     }
 
     // ==================== INNER CLASS FOR REQUEST ====================
