@@ -65,6 +65,36 @@ public class AddressController {
     }
 
     /**
+     * GET /api/addresses/{addressId}
+     * Fetch a single address by ID
+     */
+    @GetMapping("/{addressId}")
+    public ResponseEntity<?> getAddressById(@PathVariable Long addressId) {
+        try {
+            Long userId = getCurrentUserId();
+            
+            Address address = addressRepository.findById(addressId)
+                    .orElse(null);
+            
+            if (address == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Address not found"));
+            }
+            
+            // Verify ownership - ensure user can only fetch their own addresses
+            if (!address.getUserId().equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "You don't have permission to access this address"));
+            }
+            
+            return ResponseEntity.ok(Map.of("data", address));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch address: " + e.getMessage()));
+        }
+    }
+
+    /**
      * POST /api/addresses
      * Add a new address for the authenticated user
      */

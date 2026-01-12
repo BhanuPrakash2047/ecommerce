@@ -1,6 +1,7 @@
 package com.snackecommerce.user.service;
 
 import com.snackecommerce.common.exception.OAuth2AuthenticationException;
+import com.snackecommerce.user.dto.ChangePasswordRequest;
 import com.snackecommerce.user.dto.JwtResponse;
 import com.snackecommerce.user.dto.LoginRequest;
 import com.snackecommerce.user.dto.RegisterRequest;
@@ -63,6 +64,8 @@ public class AuthService {
         // Create new user
         User user = User.builder()
                 .email(registerRequest.getEmail())
+                .fullName(registerRequest.getFullName())
+                .phone(registerRequest.getPhone())
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .authProvider(AuthProvider.LOCAL)
                 .role(registerRequest.getRole() != null ? registerRequest.getRole() : UserRole.USER)
@@ -102,15 +105,53 @@ public class AuthService {
         if (!user.getActive()) {
             throw new OAuth2AuthenticationException("User account is disabled");
         }
-
-        // Update only allowed fields
-        if (updateRequest.getRole() != null && !updateRequest.getRole().equals(user.getRole())) {
-            // Only admins should be able to change roles
-            user.setRole(updateRequest.getRole());
+        if(updateRequest.getFullName() != null) {
+            user.setFullName(updateRequest.getFullName());
         }
+        if(updateRequest.getPhone() != null) {
+            user.setPhone(updateRequest.getPhone());
+        }
+
+//        // Update only allowed fields
+//        if (updateRequest.getRole() != null && !updateRequest.getRole().equals(user.getRole())) {
+//            // Only admins should be able to change roles
+//            user.setRole(updateRequest.getRole());
+//        }
 
         User updatedUser = userRepository.save(user);
         return convertToUserResponse(updatedUser);
+    }
+
+    /**
+     * Change user password
+     * Validates old password before changing to new password
+     */
+    public void changePassword(String email, ChangePasswordRequest changePasswordRequest) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new OAuth2AuthenticationException("User not found"));
+
+        if (!user.getActive()) {
+            throw new OAuth2AuthenticationException("User account is disabled");
+        }
+
+        // Verify old password
+        if (user.getPassword() == null || !passwordEncoder.matches(changePasswordRequest.getOldPassword(), user.getPassword())) {
+            throw new OAuth2AuthenticationException("Current password is incorrect");
+        }
+
+        // Check if new passwords match
+        if (!changePasswordRequest.getNewPassword().equals(changePasswordRequest.getConfirmPassword())) {
+            throw new OAuth2AuthenticationException("New passwords do not match");
+        }
+
+        // Check if new password is different from old password
+        if (changePasswordRequest.getOldPassword().equals(changePasswordRequest.getNewPassword())) {
+            throw new OAuth2AuthenticationException("New password must be different from current password");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
+        userRepository.save(user);
     }
 
     /**
@@ -120,6 +161,8 @@ public class AuthService {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setPhone(user.getPhone());
         response.setRole(user.getRole());
         response.setActive(user.getActive());
         response.setCreatedAt(user.getCreatedAt());

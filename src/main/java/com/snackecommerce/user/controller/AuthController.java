@@ -1,6 +1,7 @@
 package com.snackecommerce.user.controller;
 
 import com.snackecommerce.common.util.JwtUtil;
+import com.snackecommerce.user.dto.ChangePasswordRequest;
 import com.snackecommerce.user.dto.JwtResponse;
 import com.snackecommerce.user.dto.LoginRequest;
 import com.snackecommerce.user.dto.RegisterRequest;
@@ -68,6 +69,20 @@ public class AuthController {
     }
 
     /**
+     * Change user password (requires authentication)
+     * Validates old password before changing to new password
+     */
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
+        String email = authentication.getName();
+        authService.changePassword(email, changePasswordRequest);
+        return ResponseEntity.ok(new MessageResponse("Password changed successfully"));
+    }
+
+    /**
      * OAuth2 Success Callback - Frontend receives token and user info
      */
     @GetMapping("/oauth2/success")
@@ -121,6 +136,22 @@ public class AuthController {
     }
 
     // Inner classes for response DTOs
+    public static class MessageResponse {
+        private String message;
+
+        public MessageResponse(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+    }
+
     public static class ErrorResponse {
         private String message;
 
