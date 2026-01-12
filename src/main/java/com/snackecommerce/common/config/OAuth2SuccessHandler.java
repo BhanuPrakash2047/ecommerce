@@ -40,7 +40,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String token = jwtUtil.generateToken(email);
 
         // Redirect to frontend with token
-        String redirectUrl = UriComponentsBuilder.fromUriString("/oauth2/success")
+        // Build full frontend URL with token and email as query parameters
+        String frontendUrl = "http://localhost:5173"; // Frontend URL - make this configurable for production
+        String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/oauth2/success")
                 .queryParam("token", token)
                 .queryParam("email", email)
                 .build()

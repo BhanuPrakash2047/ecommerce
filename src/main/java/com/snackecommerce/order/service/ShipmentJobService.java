@@ -36,6 +36,9 @@ public class ShipmentJobService {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private ShipmentPersistenceService shipmentPersistenceService;
+
     /**
      * Save a failed shipment creation as a retry job
      * 
@@ -55,13 +58,14 @@ public class ShipmentJobService {
             job = ShipmentJob.builder()
                     .orderId(orderId)
                     .status(ShipmentJobStatus.PENDING)
-                    .attempts(0)
+                    .attempts(1)
                     .lastError(error)
-                    .nextRetryAt(LocalDateTime.now().plusMinutes(5)) // First retry after 5 minutes
+                    .nextRetryAt(LocalDateTime.now().plusMinutes(1)) // First retry after 1 minute
                     .build();
         }
         
-        ShipmentJob savedJob = shipmentJobRepository.save(job);
+        // Save in separate transaction with REQUIRES_NEW propagation
+        ShipmentJob savedJob = shipmentPersistenceService.saveJobInNewTransaction(job);
         logger.info("Shipment job created/updated for order {}: attempt {}, next retry at {}", 
                    orderId, savedJob.getAttempts(), savedJob.getNextRetryAt());
         return savedJob;
@@ -69,11 +73,11 @@ public class ShipmentJobService {
 
     /**
      * Scheduled task to retry failed shipment creation
-     * Runs every 2 minutes
+     * Runs every 1 minute
      * Picks up jobs with status=PENDING and nextRetryAt <= now
      * Max 5 retries per order, then marked FAILED
      */
-    @Scheduled(fixedDelay = 120000) // 2 minutes
+    @Scheduled(fixedDelay = 60000) // 1 minute
     public void retryFailedShipments() {
         logger.info("Shipment retry scheduler started");
         
@@ -87,41 +91,38 @@ public class ShipmentJobService {
                 // Try to create shipment
                 String waybill = deliveryService.createShipment(job.getOrderId());
                 
-                // Success!
-                job.markSuccess();
-                shipmentJobRepository.save(job);
+                // Success! - Save in new transaction
+                shipmentPersistenceService.saveSuccessfulJob(job);
                 logger.info("Shipment created successfully for order {} with waybill: {}", job.getOrderId(), waybill);
                 
             } catch (Exception e) {
                 // Increment attempt and schedule next retry or mark as failed
                 logger.warn("Shipment retry failed for order {}: {}", job.getOrderId(), e.getMessage());
-                job.incrementAttempt(e.getMessage());
-                shipmentJobRepository.save(job);
+                shipmentPersistenceService.incrementAttemptAsync(job, e.getMessage());
                 
-                if (job.getStatus() == ShipmentJobStatus.FAILED) {
-                    logger.error("Shipment job marked FAILED for order {} after {} attempts", 
-                               job.getOrderId(), job.getAttempts());
-                    
-                    // Send admin alert notification about failed shipment
-                    try {
-                        Order order = orderRepository.findById(job.getOrderId()).orElse(null);
-                        if (order != null) {
-                            // Assuming admin user ID is 1 (or get from config/settings)
-                            // In production, you might want to send to all admins or a specific ops user
-                            Long adminUserId = 1L; // TODO: Make this configurable
-                            notificationService.notifyAdminShipmentFailure(
-                                adminUserId,
-                                order.getId(),
-                                order.getOrderNumber(),
-                                job.getAttempts(),
-                                job.getLastError()
-                            );
-                            logger.info("Admin notification sent for failed shipment (order {})", job.getOrderId());
-                        }
-                    } catch (Exception ex) {
-                        logger.error("Failed to send admin notification for shipment failure: {}", ex.getMessage());
-                    }
-                }
+//                // Check if marked as failed after increment
+//                if (job.getStatus() == ShipmentJobStatus.FAILED) {
+//                    logger.error("Shipment job marked FAILED for order {} after {} attempts",
+//                               job.getOrderId(), job.getAttempts());
+//
+//                    // Send admin alert notification about failed shipment
+//                    try {
+//                        Order order = orderRepository.findById(job.getOrderId()).orElse(null);
+//                        if (order != null) {
+//                            Long adminUserId = 5L; // TODO: Make this configurable
+//                            notificationService.notifyAdminShipmentFailure(
+//                                adminUserId,
+//                                order.getId(),
+//                                order.getOrderNumber(),
+//                                job.getAttempts(),
+//                                job.getLastError()
+//                            );
+//                            logger.info("Admin notification sent for failed shipment (order {})", job.getOrderId());
+//                        }
+//                    } catch (Exception ex) {
+//                        logger.error("Failed to send admin notification for shipment failure: {}", ex.getMessage());
+//                    }
+//                }
             }
         }
         
@@ -163,16 +164,12 @@ public class ShipmentJobService {
             logger.info("Manually retrying shipment for order {} (job {})", job.getOrderId(), jobId);
             
             String waybill = deliveryService.createShipment(job.getOrderId());
-            job.markSuccess();
-            shipmentJobRepository.save(job);
-            logger.info("Manual retry successful for order {} with waybill: {}", job.getOrderId(), waybill);
+            return shipmentPersistenceService.saveSuccessfulJob(job);
             
         } catch (Exception e) {
             logger.warn("Manual retry failed for order {}: {}", job.getOrderId(), e.getMessage());
-            job.incrementAttempt(e.getMessage());
-            shipmentJobRepository.save(job);
+            shipmentPersistenceService.incrementAttemptAsync(job, e.getMessage());
+            return job;
         }
-        
-        return job;
     }
 }

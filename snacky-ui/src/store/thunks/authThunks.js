@@ -20,11 +20,13 @@ export const loginUser = createAsyncThunk(
 // REGISTER
 export const registerUser = createAsyncThunk(
   'auth/register',
-  async ({ email, password, role = 'USER' }, { rejectWithValue }) => {
+  async ({ email, password, fullName, phone, role = 'USER' }, { rejectWithValue }) => {
     try {
       const response = await apiClient.post('/auth/register', { 
         email, 
-        password, 
+        password,
+        fullName,
+        phone,
         role 
       });
       const { token, user } = response.data;
@@ -32,7 +34,7 @@ export const registerUser = createAsyncThunk(
       localStorage.setItem('user', JSON.stringify(user));
       return { token, user };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || error.toString());
     }
   }
 );
@@ -56,6 +58,23 @@ export const updateProfile = createAsyncThunk(
   async (userUpdate, { rejectWithValue }) => {
     try {
       const response = await apiClient.put('/auth/profile', userUpdate);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// CHANGE PASSWORD
+export const changePassword = createAsyncThunk(
+  'auth/changePassword',
+  async ({ oldPassword, newPassword, confirmPassword }, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.post('/auth/change-password', {
+        oldPassword,
+        newPassword,
+        confirmPassword,
+      });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.message);

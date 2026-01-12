@@ -32,7 +32,7 @@ public class Notification {
     private String message;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private NotificationType type;
 
     // Related entity info (e.g., orderId for ORDER_DELIVERED)

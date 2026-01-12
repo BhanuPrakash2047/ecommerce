@@ -24,7 +24,9 @@ public class OAuth2FailureHandler extends SimpleUrlAuthenticationFailureHandler 
             errorMessage = exception.getMessage();
         }
 
-        getRedirectStrategy().sendRedirect(request, response,
-                "/oauth2/error?message=" + java.net.URLEncoder.encode(errorMessage, "UTF-8"));
+        // Redirect to frontend error page
+        String frontendUrl = "http://localhost:5173";
+        String redirectUrl = frontendUrl + "/oauth2/error?message=" + java.net.URLEncoder.encode(errorMessage, "UTF-8");
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 }

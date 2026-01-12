@@ -39,6 +39,7 @@ const addressSlice = createSlice({
       .addCase(fetchAddresses.fulfilled, (state, action) => {
         state.loading = false;
         state.items = action.payload;
+        console.log('Fetched addresses:', state.items);
         const defaultAddr = action.payload.find(addr => addr.isDefault);
         if (defaultAddr) {
           state.defaultAddress = defaultAddr;

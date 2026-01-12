@@ -28,7 +28,7 @@ public class ShipmentJob {
     private ShipmentJobStatus status = ShipmentJobStatus.PENDING;
 
     @Column(nullable = false)
-    private Integer attempts = 0;
+    private Integer attempts = 1;
 
     @Column(columnDefinition = "TEXT")
     private String lastError;
@@ -41,8 +41,9 @@ public class ShipmentJob {
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     /**
-     * Increment attempt count and calculate next retry time with exponential backoff
-     * Backoff: 5 min, 15 min, 30 min, 60 min, 120 min
+     * Increment attempt count and set next retry time to 1 minute.
+     * Simple linear retry strategy: retry every 1 minute until max attempts reached.
+     * Max 5 retries, then marked FAILED.
      */
     public void incrementAttempt(String error) {
         this.attempts++;
@@ -50,9 +51,8 @@ public class ShipmentJob {
         this.updatedAt = LocalDateTime.now();
 
         if (this.attempts < 5) {
-            // Calculate backoff: 5 * 2^(attempts-1) minutes
-            long backoffMinutes = 5L * (long) Math.pow(2, attempts - 1);
-            this.nextRetryAt = LocalDateTime.now().plusMinutes(backoffMinutes);
+            // Retry every 1 minute
+            this.nextRetryAt = LocalDateTime.now().plusMinutes(1);
         } else {
             // Mark as failed after 5 attempts
             this.status = ShipmentJobStatus.FAILED;

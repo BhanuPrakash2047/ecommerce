@@ -97,9 +97,18 @@ public class NotificationService {
      */
     public Notification notifyAdminShipmentFailure(Long adminUserId, Long orderId, String orderNumber, int attempts, String lastError) {
         String title = "⚠️ ADMIN ALERT: Shipment Creation Failed";
-        String message = String.format("Shipment creation failed for order %s after %d attempts. Last error: %s. Manual intervention required.", orderNumber, attempts, lastError);
         
-        String metadata = String.format("{\"attempts\":%d,\"lastError\":\"%s\"}", attempts, lastError);
+        // Keep message simple and short to avoid database truncation errors
+        String message = String.format("Order %s failed to create shipment after %d attempts. Manual intervention needed.", orderNumber, attempts);
+        
+        // Store full error details in metadata (truncated)
+        String truncatedError = (lastError != null && lastError.length() > 300) 
+            ? lastError.substring(0, 300) + "..." 
+            : (lastError != null ? lastError : "Unknown error");
+        
+        // Escape JSON special characters
+        String escapedError = truncatedError.replace("\\", "\\\\").replace("\"", "\\\"");
+        String metadata = String.format("{\"attempts\":%d,\"lastError\":\"%s\"}", attempts, escapedError);
         
         Notification notification = createNotification(
             adminUserId,
@@ -112,6 +121,28 @@ public class NotificationService {
         );
         
         logger.info("Admin notification sent for failed shipment (order {}, admin user {})", orderId, adminUserId);
+        return notification;
+    }
+
+    /**
+     * Send notification: Password changed successfully
+     * Sent on: User changes password via profile
+     */
+    public Notification notifyPasswordChanged(Long userId, String userEmail) {
+        String title = "Password Changed ✅";
+        String message = "Your password has been changed successfully. If you did not make this change, please contact support immediately.";
+        
+        Notification notification = createNotification(
+            userId,
+            title,
+            message,
+            NotificationType.PASSWORD_CHANGED,
+            "USER",
+            userId,
+            String.format("{\"email\":\"%s\"}", userEmail)
+        );
+        
+        logger.info("Notification sent to user {} for password change", userId);
         return notification;
     }
 

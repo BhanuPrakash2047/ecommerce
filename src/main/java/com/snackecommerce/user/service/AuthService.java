@@ -1,6 +1,7 @@
 package com.snackecommerce.user.service;
 
 import com.snackecommerce.common.exception.OAuth2AuthenticationException;
+import com.snackecommerce.notification.service.NotificationService;
 import com.snackecommerce.user.dto.ChangePasswordRequest;
 import com.snackecommerce.user.dto.JwtResponse;
 import com.snackecommerce.user.dto.LoginRequest;
@@ -30,6 +31,9 @@ public class AuthService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Login with email and password
@@ -152,6 +156,9 @@ public class AuthService {
         // Update password
         user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
         userRepository.save(user);
+
+        // Send notification to user about password change
+        notificationService.notifyPasswordChanged(user.getId(), user.getEmail());
     }
 
     /**

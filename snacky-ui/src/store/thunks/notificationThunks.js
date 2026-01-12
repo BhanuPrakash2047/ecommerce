@@ -7,9 +7,11 @@ export const fetchNotifications = createAsyncThunk(
   async ({ page = 0, pageSize = 20 } = {}, { rejectWithValue }) => {
     try {
       const response = await apiClient.get('/notifications', {
-        params: { page, pageSize }
+        params: { limit: pageSize }
       });
-      return response.data;
+      // Backend returns { notifications: [...], count: X, status: 'success' }
+      // Extract just the notifications array
+      return response.data?.notifications || [];
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -48,6 +50,7 @@ export const getUnreadNotificationCount = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await apiClient.get('/notifications/unread-count');
+      // Backend returns { unreadCount: X, status: 'success' }
       return response.data;
     } catch (error) {
       return rejectWithValue(error.message);

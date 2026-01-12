@@ -215,6 +215,11 @@ public class OrderService {
     private OrderListResponse mapToListResponse(Order order) {
         BigDecimal totalAmount = order.getTotalAmount() != null ? 
                 BigDecimal.valueOf(order.getTotalAmount()) : BigDecimal.ZERO;
+        
+        // Count items in order
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        int itemCount = items.size();
+        
         return OrderListResponse.builder()
                 .id(order.getId())
                 .orderNumber(order.getOrderNumber())
@@ -222,6 +227,9 @@ public class OrderService {
                 .totalAmount(totalAmount)
                 .createdAt(order.getCreatedAt())
                 .trackingNumber(order.getTrackingNumber())
+                .itemCount(itemCount)
+                .receiverName(order.getReceiverName())
+                .deliveredAt(order.getDeliveredAt())
                 .build();
     }
 }

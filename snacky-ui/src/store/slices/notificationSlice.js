@@ -91,7 +91,8 @@ const notificationSlice = createSlice({
       })
       .addCase(getUnreadNotificationCount.fulfilled, (state, action) => {
         state.loading = false;
-        state.unreadCount = action.payload.count;
+        // Backend returns { unreadCount: X, status: 'success' }
+        state.unreadCount = action.payload?.unreadCount || 0;
       })
       .addCase(getUnreadNotificationCount.rejected, (state, action) => {
         state.loading = false;

@@ -201,7 +201,16 @@ const cartSlice = createSlice({
       })
       .addCase(getEligibleCoupons.fulfilled, (state, action) => {
         state.loading = false;
-        state.eligibleCoupons = action.payload.eligibleCoupons || [];
+        // Handle different response structures
+        if (Array.isArray(action.payload)) {
+          state.eligibleCoupons = action.payload;
+        } else if (action.payload?.eligibleCoupons && Array.isArray(action.payload.eligibleCoupons)) {
+          state.eligibleCoupons = action.payload.eligibleCoupons;
+        } else if (action.payload?.content && Array.isArray(action.payload.content)) {
+          state.eligibleCoupons = action.payload.content;
+        } else {
+          state.eligibleCoupons = [];
+        }
       })
       .addCase(getEligibleCoupons.rejected, (state, action) => {
         state.loading = false;

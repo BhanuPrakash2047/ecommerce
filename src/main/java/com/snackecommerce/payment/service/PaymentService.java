@@ -4,6 +4,7 @@ import com.snackecommerce.cart.entity.Cart;
 import com.snackecommerce.cart.repository.CartItemRepository;
 import com.snackecommerce.cart.repository.CartRepository;
 import com.snackecommerce.common.exception.CartNotFoundException;
+import com.snackecommerce.common.exception.NotificationException;
 import com.snackecommerce.order.entity.Order;
 import com.snackecommerce.order.enums.OrderStatus;
 import com.snackecommerce.order.repository.OrderItemRepository;
@@ -66,6 +67,9 @@ public class PaymentService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private PaymentFollowUpService paymentFollowUpService;
+
     /**
      * Create payment order for checkout
      */
@@ -117,6 +121,19 @@ public class PaymentService {
 
     /**
      * Handle successful payment webhook
+     * Uses SEPARATE transactions for notification and shipment
+     * This way: notification/shipment failures DON'T affect payment commit
+     * 
+     * Flow:
+     * 1. Main Transaction:
+     *    - Confirm payment ✅
+     *    - Update order status ✅
+     *    - Clear cart ✅
+     *    - COMMIT (payment is 100% safe now)
+     * 2. Separate Transaction (REQUIRES_NEW):
+     *    - Send notification (can fail independently)
+     * 3. Separate Transaction (REQUIRES_NEW):
+     *    - Create shipment (can fail independently)
      */
     @Transactional
     public void handlePaymentSuccess(String razorpayOrderId, String razorpayPaymentId, String signature) throws Exception {
@@ -159,29 +176,11 @@ public class PaymentService {
         clearUserCart(order.getUserId());
         logger.info("Cart cleared for user ID: {}", order.getUserId());
 
-        // Send notification to user: Payment received, order processing
-        try {
-            notificationService.notifyPaymentReceived(
-                order.getUserId(),
-                order.getId(),
-                order.getOrderNumber(),
-                order.getTotalAmount()
-            );
-            logger.info("Notification sent to user {} for payment received", order.getUserId());
-        } catch (Exception e) {
-            logger.error("Failed to send notification for payment received: {}", e.getMessage());
-        }
-
-        // Create shipment on Delhivery
-        try {
-            String waybill = deliveryService.createShipment(order.getId());
-            logger.info("Shipment created successfully for order ID: {} with waybill: {}", order.getId(), waybill);
-        } catch (Exception e) {
-            logger.error("Failed to create shipment for order ID: {}. Saving to retry queue.", order.getId(), e);
-            // Save failed shipment as a retry job - will be retried automatically by scheduler
-            shipmentJobService.saveFailedShipment(order.getId(), e.getMessage());
-            logger.info("Shipment job created for order {} - will retry automatically", order.getId());
-        }
+        // At this point: Payment/Order/Cart are COMMITTED and 100% safe
+        // Now trigger async follow-up operations (notification & shipment)
+        // These run in separate threads and their failures don't affect payment
+        paymentFollowUpService.notifyPaymentSuccess(order);
+        paymentFollowUpService.createShipmentAsync(order);
     }
 
     /**

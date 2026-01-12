@@ -21,6 +21,10 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    private String fullName;
+
+    private String phone;
+
     // nullable for OAuth users
     private String password;
 

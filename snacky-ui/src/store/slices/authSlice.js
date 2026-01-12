@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { loginUser, registerUser, getProfile, updateProfile, logoutUser } from '../thunks/authThunks';
+import { loginUser, registerUser, getProfile, updateProfile, changePassword, logoutUser } from '../thunks/authThunks';
 
 const initialState = {
   isAuthenticated: !!localStorage.getItem('token'),
@@ -23,6 +23,21 @@ const authSlice = createSlice({
       state.error = null;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+    },
+    setAuthFromToken: (state, action) => {
+      const { token, user } = action.payload || {};
+      state.isAuthenticated = true;
+      state.error = null;
+
+      if (token) {
+        state.token = token;
+        localStorage.setItem('token', token);
+      }
+
+      if (user) {
+        state.user = user;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
     }
   },
   extraReducers: (builder) => {
@@ -94,6 +109,22 @@ const authSlice = createSlice({
         state.error = action.payload;
       });
 
+    // CHANGE PASSWORD
+    builder
+      .addCase(changePassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(changePassword.fulfilled, (state) => {
+        state.loading = false;
+        state.error = null;
+        // Password changed successfully, no state update needed
+      })
+      .addCase(changePassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
     // LOGOUT
     builder
       .addCase(logoutUser.pending, (state) => {
@@ -115,5 +146,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { clearError, clearAuth } = authSlice.actions;
+export const { clearError, clearAuth, setAuthFromToken } = authSlice.actions;
 export default authSlice.reducer;

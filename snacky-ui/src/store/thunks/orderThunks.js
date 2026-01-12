@@ -30,15 +30,17 @@ export const fetchOrderDetails = createAsyncThunk(
 // CREATE ORDER (CHECKOUT)
 export const createOrder = createAsyncThunk(
   'orders/create',
-  async ({ addressId, appliedCouponId }, { rejectWithValue }) => {
+  async (addressId, { rejectWithValue }) => {
     try {
-      const response = await apiClient.post('/cart/checkout', {
-        addressId,
-        appliedCouponId
-      });
+      const response = await apiClient.post(`/cart/checkout/confirm?id=${addressId}`);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(
+        error.response?.data?.error || 
+        error.response?.data?.message ||
+        error.message || 
+        'Failed to create order'
+      );
     }
   }
 );

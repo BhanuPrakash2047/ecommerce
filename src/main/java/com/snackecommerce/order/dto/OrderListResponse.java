@@ -22,4 +22,7 @@ public class OrderListResponse {
     private BigDecimal totalAmount;
     private LocalDateTime createdAt;
     private String trackingNumber;
+    private Integer itemCount;  // Number of items in order
+    private String receiverName;  // Recipient name
+    private LocalDateTime deliveredAt;  // Delivery date
 }
