@@ -6,6 +6,7 @@ import com.snackecommerce.order.service.ShipmentJobService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -28,6 +29,7 @@ public class ShipmentJobController {
      * List all PENDING shipment jobs (waiting for retry)
      */
     @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getPendingJobs() {
         List<ShipmentJob> pendingJobs = shipmentJobService.getPendingJobs();
         
@@ -44,6 +46,7 @@ public class ShipmentJobController {
      * List all FAILED shipment jobs (max attempts reached)
      */
     @GetMapping("/failed")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getFailedJobs() {
         List<ShipmentJob> failedJobs = shipmentJobService.getFailedJobs();
         
@@ -60,6 +63,7 @@ public class ShipmentJobController {
      * List all SUCCESSFUL shipment jobs
      */
     @GetMapping("/successful")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getSuccessfulJobs() {
         List<ShipmentJob> successfulJobs = shipmentJobService.getSuccessfulJobs();
         
@@ -79,6 +83,7 @@ public class ShipmentJobController {
      * Response: { "status": "success/failed", "message": "...", "job": {...} }
      */
     @PostMapping("/{jobId}/retry")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> retryShipmentJob(@PathVariable Long jobId) {
         try {
             ShipmentJob updatedJob = shipmentJobService.manuallyRetryJob(jobId);
@@ -109,6 +114,7 @@ public class ShipmentJobController {
      * Get shipment job statistics
      */
     @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getShipmentJobStats() {
         List<ShipmentJob> pending = shipmentJobService.getPendingJobs();
         List<ShipmentJob> failed = shipmentJobService.getFailedJobs();

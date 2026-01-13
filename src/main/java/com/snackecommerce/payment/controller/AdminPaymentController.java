@@ -12,6 +12,7 @@ import com.snackecommerce.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -45,6 +46,7 @@ public class AdminPaymentController {
      * Shows: Order ID, Razorpay Order ID, Amount, Email, Created time, Status
      */
     @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getPendingPayments() {
         try {
             // Find all orders in PAYMENT_PENDING status
@@ -89,6 +91,7 @@ public class AdminPaymentController {
      * Response: { "status": "success", "message": "Order confirmed and shipment created", "order": {...} }
      */
     @PostMapping("/{orderId}/mark-success")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> markPaymentSuccess(
             @PathVariable Long orderId,
             @RequestBody(required = false) Map<String, String> request) {
@@ -134,6 +137,7 @@ public class AdminPaymentController {
      * Response: { "status": "success", "message": "Payment marked FAILED, order CANCELLED" }
      */
     @PostMapping("/{orderId}/mark-failed")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> markPaymentFailed(
             @PathVariable Long orderId,
             @RequestBody(required = false) Map<String, String> request) {
@@ -176,6 +180,7 @@ public class AdminPaymentController {
      * Get payment statistics
      */
     @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getPaymentStats() {
         try {
             List<Order> pendingOrders = orderRepository.findByStatus(OrderStatus.PAYMENT_PENDING);

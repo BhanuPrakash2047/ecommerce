@@ -6,6 +6,7 @@ import com.snackecommerce.payment.service.PaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +53,7 @@ public class PaymentController {
      * Frontend uses razorpayOrderId to initialize Razorpay checkout modal
      */
     @PostMapping("/create")
+     @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> createPayment(@RequestBody CreatePaymentRequest request) {
         try {
             logger.info("Payment creation request for order ID: {}, amount: {}", request.getOrderId(), request.getAmount());

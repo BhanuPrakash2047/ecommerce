@@ -13,6 +13,7 @@ import com.snackecommerce.order.entity.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -45,6 +46,7 @@ public class CartController {
      * GET /api/cart - View current user's cart with all items and alerts
      */
     @GetMapping
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CartResponse> viewCart() {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.getCart(userId);
@@ -56,6 +58,7 @@ public class CartController {
      * Request: { "productId": 1, "quantity": 2 }
      */
     @PostMapping("/items")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CartResponse> addToCart(@RequestBody AddToCartRequest request) {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.addToCart(userId, request);
@@ -67,6 +70,7 @@ public class CartController {
      * Request: { "quantity": 5 }
      */
     @PutMapping("/items/{cartItemId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CartResponse> updateQuantity(
             @PathVariable Long cartItemId,
             @RequestBody UpdateQuantityRequest request) {
@@ -79,6 +83,7 @@ public class CartController {
      * DELETE /api/cart/items/{cartItemId} - Remove item from cart
      */
     @DeleteMapping("/items/{cartItemId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CartResponse> removeFromCart(@PathVariable Long cartItemId) {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.removeFromCart(userId, cartItemId);
@@ -89,6 +94,8 @@ public class CartController {
      * DELETE /api/cart - Clear entire cart
      */
     @DeleteMapping
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
+
     public ResponseEntity<Void> clearCart() {
         Long userId = getCurrentUserId();
         // Implementation: cartService.clearCart(userId);
@@ -102,6 +109,7 @@ public class CartController {
      * Returns: { "eligibleCoupons": [...], "ineligibleCoupons": [...] }
      */
     @GetMapping("/coupons/eligible")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<EligibleCouponsResponse> getEligibleCoupons() {
         Long userId = getCurrentUserId();
         EligibleCouponsResponse response = cartService.getEligibleCoupons(userId);
@@ -113,6 +121,8 @@ public class CartController {
      * Request: { "couponId": 5 }
      */
     @PostMapping("/coupons")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
+
     public ResponseEntity<CartResponse> applyCoupon(@RequestBody ApplyCouponRequest request) {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.applyCoupon(userId, request);
@@ -123,6 +133,7 @@ public class CartController {
      * DELETE /api/cart/coupons - Remove applied coupon
      */
     @DeleteMapping("/coupons")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CartResponse> removeCoupon() {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.removeCoupon(userId);
@@ -137,6 +148,7 @@ public class CartController {
      * If invalid: { "isValid": false, "issues": [...] }
      */
     @PostMapping("/checkout/validate")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<CheckoutValidationResponse> validateCheckout() {
         Long userId = getCurrentUserId();
         CheckoutValidationResponse response = cartService.validateCheckout(userId);
@@ -164,6 +176,7 @@ public class CartController {
      * Response: { "razorpayOrderId": "order_ABC123", "amount": 5000, "orderId": 1, ... }
      */
     @PostMapping("/checkout/confirm")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> confirmCheckout(@RequestParam Long id) {
         try {
             Long userId = getCurrentUserId();

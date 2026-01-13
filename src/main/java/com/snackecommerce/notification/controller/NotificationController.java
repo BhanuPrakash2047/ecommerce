@@ -6,6 +6,7 @@ import com.snackecommerce.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +32,7 @@ public class NotificationController {
      * Get all unread notifications for current user
      */
     @GetMapping("/unread")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getUnreadNotifications() {
         try {
             Long userId = getCurrentUserId();
@@ -56,6 +58,7 @@ public class NotificationController {
      * Query param: limit (default 20)
      */
     @GetMapping
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getNotifications(
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         try {
@@ -81,6 +84,7 @@ public class NotificationController {
      * Get count of unread notifications
      */
     @GetMapping("/unread-count")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getUnreadCount() {
         try {
             Long userId = getCurrentUserId();
@@ -104,6 +108,7 @@ public class NotificationController {
      * Mark a specific notification as read
      */
     @PutMapping("/{notificationId}/read")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> markAsRead(@PathVariable Long notificationId) {
         try {
             Notification notification = notificationService.markAsRead(notificationId);
@@ -127,6 +132,7 @@ public class NotificationController {
      * Mark all unread notifications as read for current user
      */
     @PutMapping("/read-all")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> markAllAsRead() {
         try {
             Long userId = getCurrentUserId();
@@ -150,6 +156,7 @@ public class NotificationController {
      * Delete a specific notification
      */
     @DeleteMapping("/{notificationId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteNotification(@PathVariable Long notificationId) {
         try {
             notificationService.deleteNotification(notificationId);
@@ -172,6 +179,7 @@ public class NotificationController {
      * Delete all notifications for current user
      */
     @DeleteMapping("/all")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteAllNotifications() {
         try {
             Long userId = getCurrentUserId();

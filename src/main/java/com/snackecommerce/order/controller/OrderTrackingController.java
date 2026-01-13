@@ -68,7 +68,7 @@ public class OrderTrackingController {
      * Downloads on-the-fly from Delhivery API
      */
     @GetMapping("/{orderId}/shipping-label")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> downloadShippingLabel(@PathVariable Long orderId, Principal principal) {
         try {
             byte[] labelData = deliveryService.downloadShippingLabel(orderId);
@@ -86,6 +86,7 @@ public class OrderTrackingController {
      * Check if pincode is serviceable for delivery
      */
     @GetMapping("/delivery/check-pincode/{pincode}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PincodeAvailabilityResponse> checkPincodeAvailability(@PathVariable String pincode) {
         try {
             PincodeAvailabilityResponse response = deliveryService.checkPincodeAvailability(pincode);

@@ -8,6 +8,7 @@ import com.snackecommerce.user.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -52,6 +53,7 @@ public class AddressController {
      * Fetch all addresses for the authenticated user
      */
     @GetMapping
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> getAllAddresses() {
         try {
             Long userId = getCurrentUserId();
@@ -68,6 +70,7 @@ public class AddressController {
      * Fetch a single address by ID
      */
     @GetMapping("/{addressId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> getAddressById(@PathVariable Long addressId) {
         try {
             Long userId = getCurrentUserId();
@@ -98,6 +101,7 @@ public class AddressController {
      * Add a new address for the authenticated user
      */
     @PostMapping
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> addAddress(
             @RequestBody Map<String, Object> request) {
         try {
@@ -154,6 +158,7 @@ public class AddressController {
      * Update an existing address
      */
     @PutMapping("/{addressId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> updateAddress(
             @PathVariable Long addressId,
             @RequestBody Map<String, Object> request) {
@@ -235,6 +240,7 @@ public class AddressController {
      * Delete an address
      */
     @DeleteMapping("/{addressId}")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> deleteAddress(@PathVariable Long addressId) {
         try {
             Long userId = getCurrentUserId();
@@ -266,6 +272,7 @@ public class AddressController {
      * Set an address as default
      */
     @PutMapping("/{addressId}/default")
+    @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<?> setDefaultAddress(@PathVariable Long addressId) {
         try {
             Long userId = getCurrentUserId();
