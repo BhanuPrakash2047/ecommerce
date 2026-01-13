@@ -27,6 +27,9 @@ const couponSlice = createSlice({
     },
     clearValidationResult: (state) => {
       state.validationResult = null;
+    },
+    resetCoupon: () => {
+      return initialState;
     }
   },
   extraReducers: (builder) => {
@@ -154,5 +157,5 @@ const couponSlice = createSlice({
   }
 });
 
-export const { clearError, clearValidationResult } = couponSlice.actions;
+export const { clearError, clearValidationResult, resetCoupon } = couponSlice.actions;
 export default couponSlice.reducer;

@@ -27,6 +27,9 @@ const addressSlice = createSlice({
     },
     clearSelectedAddress: (state) => {
       state.selectedAddressId = null;
+    },
+    resetAddress: () => {
+      return initialState;
     }
   },
   extraReducers: (builder) => {
@@ -39,7 +42,6 @@ const addressSlice = createSlice({
       .addCase(fetchAddresses.fulfilled, (state, action) => {
         state.loading = false;
         state.items = action.payload;
-        console.log('Fetched addresses:', state.items);
         const defaultAddr = action.payload.find(addr => addr.isDefault);
         if (defaultAddr) {
           state.defaultAddress = defaultAddr;
@@ -130,5 +132,5 @@ const addressSlice = createSlice({
   }
 });
 
-export const { clearError, selectAddress, clearSelectedAddress } = addressSlice.actions;
+export const { clearError, selectAddress, clearSelectedAddress, resetAddress } = addressSlice.actions;
 export default addressSlice.reducer;

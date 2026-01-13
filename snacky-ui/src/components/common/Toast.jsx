@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
+import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 /**
- * Toast Notification System
- * Shows notifications for success, error, warning, info
+ * Professional Toast Notification System
+ * Beautiful, consistent notifications matching Snacky design system
  */
 
 let toastQueue = [];
@@ -13,7 +14,7 @@ const notifyListeners = () => {
   listeners.forEach(listener => listener([...toastQueue]));
 };
 
-export const showToast = (message, type = 'info', duration = 3000, action = null) => {
+export const showToast = (message, type = 'info', duration = 4000, action = null) => {
   const id = Math.random();
   const toast = { id, message, type, action };
 
@@ -36,50 +37,134 @@ export const removeToast = (id) => {
 };
 
 export const Toast = ({ id, message, type, action, onClose }) => {
+  const [isExiting, setIsExiting] = useState(false);
+
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(() => {
+      setIsExiting(true);
+      setTimeout(onClose, 300);
+    }, 4000);
+
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const typeStyles = {
-    success: 'bg-gradient-to-r from-cta-600 to-cta-500 text-white shadow-md border-l-4 border-cta-700',
-    error: 'bg-gradient-to-r from-accent-600 to-accent-500 text-white shadow-md border-l-4 border-accent-700',
-    warning: 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-gray-900 shadow-md border-l-4 border-yellow-600',
-    info: 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md border-l-4 border-brand-700',
+  // Color palette mapping
+  const typeConfig = {
+    success: {
+      icon: CheckCircle,
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200',
+      iconColor: 'text-emerald-600',
+      textColor: 'text-emerald-900',
+      labelColor: 'text-emerald-700',
+      accentColor: 'bg-emerald-100 hover:bg-emerald-200',
+      progressColor: 'bg-emerald-500',
+    },
+    error: {
+      icon: AlertCircle,
+      bgColor: 'bg-red-50',
+      borderColor: 'border-red-200',
+      iconColor: 'text-red-600',
+      textColor: 'text-red-900',
+      labelColor: 'text-red-700',
+      accentColor: 'bg-red-100 hover:bg-red-200',
+      progressColor: 'bg-red-500',
+    },
+    warning: {
+      icon: AlertTriangle,
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-200',
+      iconColor: 'text-amber-600',
+      textColor: 'text-amber-900',
+      labelColor: 'text-amber-700',
+      accentColor: 'bg-amber-100 hover:bg-amber-200',
+      progressColor: 'bg-amber-500',
+    },
+    info: {
+      icon: Info,
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200',
+      iconColor: 'text-blue-600',
+      textColor: 'text-blue-900',
+      labelColor: 'text-blue-700',
+      accentColor: 'bg-blue-100 hover:bg-blue-200',
+      progressColor: 'bg-blue-500',
+    },
   };
 
-  const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ',
-  };
+  const config = typeConfig[type] || typeConfig.info;
+  const Icon = config.icon;
 
   return (
     <div
-      className={`${typeStyles[type]} rounded-lg px-4 py-3 mb-3 flex items-center justify-between gap-3 animate-slide-in-right min-w-80`}
+      className={`
+        relative w-full max-w-md
+        ${config.bgColor} 
+        border-l-4 ${config.borderColor}
+        rounded-lg shadow-lg
+        px-5 py-4
+        flex items-start gap-4
+        transform transition-all duration-300 ease-out
+        ${isExiting 
+          ? 'translate-x-full opacity-0' 
+          : 'translate-x-0 opacity-100 animate-slideInRight'
+        }
+      `}
       role="alert"
+      aria-live="polite"
     >
-      <div className="flex items-center gap-3">
-        <span className="text-xl font-bold">{icons[type]}</span>
-        <p className="font-medium">{message}</p>
+      {/* Icon */}
+      <div className="flex-shrink-0 mt-0.5">
+        <Icon className={`w-5 h-5 ${config.iconColor}`} strokeWidth={2.5} />
       </div>
 
+      {/* Content */}
+      <div className="flex-grow min-w-0">
+        <p className={`text-sm font-medium ${config.textColor} leading-relaxed`}>
+          {message}
+        </p>
+      </div>
+
+      {/* Action Button */}
       {action && (
         <button
-          onClick={action.onClick}
-          className="ml-2 px-3 py-1 bg-white/20 hover:bg-white/30 rounded font-semibold text-sm transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            action.onClick();
+            setIsExiting(true);
+            setTimeout(onClose, 300);
+          }}
+          className={`
+            flex-shrink-0 px-3 py-1.5 rounded
+            text-xs font-semibold ${config.labelColor}
+            ${config.accentColor} transition-colors
+            whitespace-nowrap mt-0.5
+          `}
         >
           {action.label}
         </button>
       )}
 
+      {/* Close Button */}
       <button
-        onClick={onClose}
-        className="ml-auto text-lg hover:opacity-70 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsExiting(true);
+          setTimeout(onClose, 300);
+        }}
+        className={`flex-shrink-0 ${config.iconColor} hover:opacity-70 transition-opacity p-0.5`}
+        aria-label="Close notification"
       >
-        ×
+        <X className="w-5 h-5" strokeWidth={2.5} />
       </button>
+
+      {/* Progress Bar */}
+      <div 
+        className={`absolute bottom-0 left-0 h-1 ${config.progressColor} rounded-b-lg animate-shrink`}
+        style={{
+          animation: 'shrink 4s linear forwards',
+        }}
+      />
     </div>
   );
 };
@@ -99,14 +184,45 @@ export const ToastContainer = () => {
   if (toasts.length === 0) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed top-4 right-4 z-50 flex flex-col animate-fade-in">
+    <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
       {toasts.map(toast => (
-        <Toast
-          key={toast.id}
-          {...toast}
-          onClose={() => removeToast(toast.id)}
-        />
+        <div key={toast.id} className="pointer-events-auto">
+          <Toast
+            {...toast}
+            onClose={() => removeToast(toast.id)}
+          />
+        </div>
       ))}
+
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes shrink {
+          from {
+            width: 100%;
+          }
+          to {
+            width: 0%;
+          }
+        }
+
+        .animate-shrink {
+          animation: shrink 4s linear forwards;
+        }
+      `}</style>
     </div>,
     document.body
   );

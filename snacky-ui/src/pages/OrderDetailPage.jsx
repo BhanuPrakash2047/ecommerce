@@ -40,7 +40,6 @@ const OrderDetailPage = () => {
         .then(res => {
           const addressData = res.data.data || res.data;
           setAddress(addressData);
-          console.log('Fetched address:', addressData);
           setLoadingAddress(false);
         })
         .catch(err => {

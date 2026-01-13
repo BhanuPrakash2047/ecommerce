@@ -116,15 +116,15 @@ const ProductsPage = () => {
             {/* Trust Badges */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-in-left" style={{ animationDelay: '0.3s' }}>
               <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
-                <span className="text-xl">✓</span>
+                <span className="text-xl"></span>
                 <span className="text-slate-700 font-medium text-sm">100% Fresh & Premium</span>
               </div>
               <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                <span className="text-xl">⚡</span>
-                <span className="text-slate-700 font-medium text-sm">Same Day Delivery</span>
+                <span className="text-xl"></span>
+                <span className="text-slate-700 font-medium text-sm">Authentic</span>
               </div>
               <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3">
-                <span className="text-xl">🎯</span>
+                <span className="text-xl"></span>
                 <span className="text-slate-700 font-medium text-sm">Best Prices Guaranteed</span>
               </div>
             </div>
@@ -230,38 +230,101 @@ const ProductsPage = () => {
         </div>
       </section>
 
-      {/* CTA SECTION */}
-      <section className="py-16 md:py-24 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl mx-4 lg:mx-auto lg:max-w-6xl relative overflow-hidden mb-16">
-        {/* Animated Background */}
+      {/* CUSTOMER REVIEWS CAROUSEL - ENHANCED */}
+      <section className="py-12 md:py-16 lg:py-24 relative overflow-hidden">
+        <style>{`
+          @keyframes scroll-left {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+          }
+          .animate-scroll { animation: scroll-left 50s linear infinite; }
+          .review-container:hover .animate-scroll { animation-play-state: paused; }
+        `}</style>
+
         <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-float"></div>
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-0 left-0 w-96 h-96 bg-orange-400/15 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
         </div>
 
-        <div className="px-8 md:px-12 relative z-10 text-center space-y-8">
-          <div>
-            <h2 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-orange-300 via-red-300 to-emerald-300 bg-clip-text text-transparent">
-              Why Snacky Lovers Choose Us 💝
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+          {/* Section Header */}
+          <div className="mb-12 md:mb-16 text-center animate-slide-in-up">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="p-2 md:p-3 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg shadow-lg">
+                <span className="text-white text-lg">⭐</span>
+              </div>
+              <span className="text-xs md:text-sm font-bold text-orange-600 uppercase tracking-widest drop-shadow">Customer Love</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 mb-3 md:mb-4 bg-gradient-to-r from-orange-600 to-emerald-600 bg-clip-text text-transparent inline-block">
+              What Our Customers Say 💬
             </h2>
-            <p className="text-lg text-slate-300">Join 50K+ happy customers enjoying premium snacks</p>
+            <p className="text-base md:text-lg text-slate-600 max-w-2xl mx-auto">
+              Join thousands of happy customers who love our premium snacks. Read their authentic reviews!
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-            {[
-              { emoji: '🚀', title: 'Super Fast', desc: 'Same day delivery in most areas' },
-              { emoji: '💎', title: 'Premium Quality', desc: 'Handpicked snacks you\'ll love' },
-              { emoji: '💰', title: 'Best Prices', desc: 'Guaranteed lowest on the market' },
-            ].map((item, idx) => (
-              <div 
-                key={idx}
-                className="p-6 rounded-2xl bg-white/10 backdrop-blur border border-white/20 hover:border-white/40 hover:bg-white/20 transition-all duration-300 transform hover:scale-105 animate-bounce-in"
-                style={{ animationDelay: `${idx * 0.1}s` }}
-              >
-                <div className="text-4xl mb-3">{item.emoji}</div>
-                <h3 className="font-bold text-lg mb-2">{item.title}</h3>
-                <p className="text-slate-300 text-sm">{item.desc}</p>
+          {/* Reviews Carousel */}
+          <div className="review-container overflow-hidden">
+            <div className="animate-scroll flex gap-4 md:gap-6 pb-4">
+              {[
+                { name: "Amit S.", rating: 5, review: "Authentic homemade taste. Fresh, crunchy, and perfectly sweet." },
+                { name: "Sneha R.", rating: 5, review: "Feels hand-made with love. Goes great with chai!" },
+                { name: "Rahul K.", rating: 5, review: "Premium quality, not oily, and very well packed." },
+                { name: "Priya M.", rating: 5, review: "Traditional thekua done right. Will reorder for sure." },
+                { name: "Vikram P.", rating: 5, review: "Best snacks I've had in years. Definitely worth the money!" },
+                { name: "Anjali N.", rating: 5, review: "Fresh as if just made. The packaging is amazing too!" },
+                { name: "Deepak M.", rating: 5, review: "Tastes like my grandmother made it. Absolutely divine!" },
+                { name: "Pooja S.", rating: 5, review: "Fast delivery and excellent quality. Highly recommended!" },
+                // Duplicate for infinite scroll effect
+                { name: "Amit S.", rating: 5, review: "Authentic homemade taste. Fresh, crunchy, and perfectly sweet." },
+                { name: "Sneha R.", rating: 5, review: "Feels hand-made with love. Goes great with chai!" },
+                { name: "Rahul K.", rating: 5, review: "Premium quality, not oily, and very well packed." },
+                { name: "Priya M.", rating: 5, review: "Traditional thekua done right. Will reorder for sure." },
+              ].map((review, idx) => (
+                <div 
+                  key={idx}
+                  className="flex-shrink-0 w-80 md:w-96 group animate-bounce-in"
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  <div className="h-full bg-gradient-to-br from-white to-orange-50 border-2 border-gradient-to-r from-orange-200 to-emerald-200 rounded-2xl p-6 md:p-7 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 hover:border-orange-400 flex flex-col">
+                    {/* Rating Stars */}
+                    <div className="flex gap-1 mb-3">
+                      {Array(review.rating).fill(null).map((_, i) => (
+                        <span key={i} className="text-yellow-400 text-xl drop-shadow-md">⭐</span>
+                      ))}
+                    </div>
+
+                    {/* Review Text */}
+                    <p className="text-slate-700 font-medium text-sm md:text-base mb-4 flex-1 leading-relaxed">
+                      "{review.review}"
+                    </p>
+
+                    {/* Reviewer Info */}
+                    <div className="flex items-center gap-3 pt-4 border-t-2 border-orange-100">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
+                        {review.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">{review.name}</p>
+                        <p className="text-xs text-orange-600 font-semibold">Verified Customer ✓</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Scroll Indicator */}
+          <div className="flex justify-center mt-8 gap-2">
+            <div className="text-center">
+              <p className="text-sm text-slate-600 font-semibold mb-3">👉 Swipe/Scroll to see more reviews</p>
+              <div className="flex justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>

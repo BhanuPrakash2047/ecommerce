@@ -89,6 +89,9 @@ export const logoutUser = createAsyncThunk(
     try {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      
+      // Import and dispatch reset actions for all user-specific data
+      // This is handled via the logout.fulfilled extra reducer in authSlice
       return null;
     } catch (error) {
       return rejectWithValue(error.message);

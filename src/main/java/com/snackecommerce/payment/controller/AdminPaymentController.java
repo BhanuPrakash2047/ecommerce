@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/admin/payments")
-@CrossOrigin(origins = "*")
 public class AdminPaymentController {
 
     @Autowired

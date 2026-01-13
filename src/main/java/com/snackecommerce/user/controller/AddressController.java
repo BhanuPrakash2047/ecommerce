@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/addresses")
-@CrossOrigin(origins = "*")
 public class AddressController {
 
     @Autowired

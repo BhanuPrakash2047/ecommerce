@@ -53,8 +53,12 @@ export const Header = () => {
                 {/* Animated Background */}
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl blur-lg opacity-75 group-hover:opacity-100 transition-opacity animate-pulse"></div>
                 {/* Logo Container */}
-                <div className="relative bg-gradient-to-br from-orange-500 to-red-600 p-2.5 rounded-xl shadow-lg group-hover:shadow-2xl transition-all">
-                  <span className="text-3xl font-bold text-white">🍿</span>
+                <div className="relative p-1.5 rounded-s-lg">
+                  <img 
+                    src="/Logo1.png" 
+                    alt="Snacky Logo" 
+                    className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover "
+                  />
                 </div>
               </div>
               <div className="hidden sm:flex flex-col">
@@ -103,13 +107,6 @@ export const Header = () => {
                   )}
                 </div>
               </Link>
-
-              {/* WISHLIST - Desktop Only */}
-              <button className="hidden md:flex items-center justify-center group transition-all duration-300 hover:scale-110">
-                <div className="p-2 rounded-lg hover:bg-red-100 transition-colors">
-                  <Heart className="w-6 h-6 text-slate-600 group-hover:text-red-600 transition-colors" />
-                </div>
-              </button>
 
               {/* CART ICON - Premium Style */}
               <Link
@@ -196,7 +193,7 @@ export const Header = () => {
                 <div className="hidden md:flex gap-2 ml-2 pl-4 border-l-2 border-orange-200">
                   <Button 
                     asChild 
-                    className="!px-4 !py-2 !text-sm border-2 border-orange-300 text-orange-600 hover:bg-orange-50 font-bold transition-all"
+                    className="!px-4 !py-2 !text-sm border-2 bg-gradient-to-r from-orange-500 to-red-500 text-orange-600 hover:bg-orange-50 font-bold transition-all"
                   >
                     <Link to="/login">Login</Link>
                   </Button>

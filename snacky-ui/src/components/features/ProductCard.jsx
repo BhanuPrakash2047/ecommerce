@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { Card, Badge, Button, Skeleton } from '../common';
 import { FiShoppingCart, FiHeart, FiStar } from 'react-icons/fi';
 import { FaHeart } from 'react-icons/fa';
@@ -17,6 +17,8 @@ export const ProductCard = ({
   loading = false,
 }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { user } = useSelector(state => state.auth);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -36,6 +38,13 @@ export const ProductCard = ({
   }
 
   const handleAddToCart = async () => {
+    // Check if user is authenticated
+    if (!user) {
+      showToast('Please login to add items to cart', 'info');
+      navigate('/login');
+      return;
+    }
+    
     setIsAddingToCart(true);
     try {
       await dispatch(addToCart({ productId: product.id, quantity: 1 })).unwrap();

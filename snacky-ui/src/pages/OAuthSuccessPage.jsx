@@ -15,7 +15,6 @@ const OAuthSuccessPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
-    const email = params.get('email');
     const errorMessage = params.get('message') || params.get('error');
 
     if (errorMessage) {

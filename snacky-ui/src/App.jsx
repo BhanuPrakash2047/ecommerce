@@ -2,6 +2,7 @@ import './index.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import store from './store';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import {
   HomePage,
   ProductsPage,
@@ -21,9 +22,10 @@ import {
 
 function App() {
   return (
-    <Provider store={store}>
-      <Router>
-        <Routes>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <Router>
+          <Routes>
           {/* Home & Products */}
           <Route path="/" element={<HomePage />} />
           <Route path="/products" element={<ProductsPage />} />
@@ -62,6 +64,7 @@ function App() {
         </Routes>
       </Router>
     </Provider>
+    </ErrorBoundary>
   );
 }
 

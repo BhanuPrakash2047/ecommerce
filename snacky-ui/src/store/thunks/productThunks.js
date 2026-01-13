@@ -112,14 +112,12 @@ export const fetchProductImages = createAsyncThunk(
     try {
       // Step 1: Get the images metadata (list of images with their IDs)
       const metadataResponse = await apiClient.get(`/products/${productId}/images`);
-      console.log('Images metadata for product', productId, ':', metadataResponse.data);
       
       const images = Array.isArray(metadataResponse.data) 
         ? metadataResponse.data 
         : metadataResponse.data.images || [];
       
       if (!images || images.length === 0) {
-        console.log('No images found for product', productId);
         return ['https://via.placeholder.com/300x200?text=No+Image'];
       }
       
@@ -132,8 +130,6 @@ export const fetchProductImages = createAsyncThunk(
               console.warn('Image missing ID:', image);
               return null;
             }
-            
-            console.log('Downloading image:', imageId);
             
             // Fetch the actual binary image data from the download endpoint
             const downloadResponse = await apiClient.get(
@@ -149,8 +145,7 @@ export const fetchProductImages = createAsyncThunk(
               reader.onloadend = () => {
                 console.log('Successfully converted image', imageId, 'to data URL');
                 resolve(reader.result); // reader.result is already a data URL
-              };
-              reader.onerror = () => {
+              };reader.onerror = () => {
                 console.error('FileReader error for image', imageId);
                 reject(new Error('Failed to read image blob'));
               };
@@ -166,7 +161,6 @@ export const fetchProductImages = createAsyncThunk(
       // Filter out null values and return valid image URLs
       const validUrls = imageUrls.filter(url => url !== null);
       console.log('Final image URLs for product', productId, ':', validUrls);
-      
       return validUrls.length > 0 ? validUrls : ['https://via.placeholder.com/300x200?text=No+Image'];
     } catch (error) {
       console.error('Error fetching product images:', error);

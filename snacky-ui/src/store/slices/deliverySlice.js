@@ -86,5 +86,5 @@ const deliverySlice = createSlice({
   }
 });
 
-export const { clearError, clearTracking } = deliverySlice.actions;
+export const { clearError, clearTracking, resetDelivery } = deliverySlice.actions;
 export default deliverySlice.reducer;

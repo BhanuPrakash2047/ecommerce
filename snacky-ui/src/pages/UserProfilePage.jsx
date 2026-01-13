@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -6,30 +7,66 @@ import { Header, Footer } from '@/components/layout';
 import { Button, Input, Card, Modal } from '@/components/common';
 import { updateProfile, logoutUser, changePassword } from '@/store/thunks/authThunks';
 import { showToast } from '@/utils/toast';
+import { useFormValidation } from '@/hooks';
 
 const UserProfilePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, loading } = useSelector(state => state.auth);
 
-  const [profileForm, setProfileForm] = useState({
+  const { 
+    formData: profileForm, 
+    errors: profileErrors, 
+    touched: profileTouched, 
+    handleChange: handleProfileChange, 
+    handleBlur: handleProfileBlur,
+    validateForm: validateProfileForm,
+    getFieldError: getProfileFieldError,
+    setFormValues: setProfileFormValues
+  } = useFormValidation({
     fullName: '',
     email: '',
     phone: '',
   });
+
+  const profileValidationRules = {
+    fullName: 'fullName',
+    email: 'email',
+    phone: 'phone',
+  };
+
   const [editingProfile, setEditingProfile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [updatingProfile, setUpdatingProfile] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState({});
+
+  const {
+    formData: passwordForm,
+    errors: passwordErrors,
+    touched: passwordTouched,
+    handleChange: handlePasswordChange,
+    handleBlur: handlePasswordBlur,
+    validateForm: validatePasswordForm,
+    getFieldError: getPasswordFieldError,
+    setFormValues: setPasswordFormValues
+  } = useFormValidation({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const passwordValidationRules = {
+    oldPassword: 'required',
+    newPassword: 'password',
+    confirmPassword: (value) => {
+      if (!value.trim()) return 'Please confirm your password';
+      if (value !== passwordForm.newPassword) return 'Passwords do not match';
+      return null;
+    },
+  };
 
   // Initialize form with user data
   useEffect(() => {
@@ -38,34 +75,17 @@ const UserProfilePage = () => {
       return;
     }
 
-    setProfileForm({
+    setProfileFormValues({
       fullName: user.fullName || '',
       email: user.email || '',
       phone: user.phone || '',
     });
   }, [user, navigate]);
 
-  const handleProfileChange = (e) => {
-    const { name, value } = e.target;
-    setProfileForm(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordForm(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
 
-    if (!profileForm.fullName.trim() || !profileForm.phone.trim()) {
-      showToast('Please fill all fields', 'error');
+    if (!validateProfileForm(profileForm, profileValidationRules)) {
       return;
     }
 
@@ -83,68 +103,28 @@ const UserProfilePage = () => {
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    console.log('handleChangePassword called');
-    console.log('passwordForm:', passwordForm);
 
-    // Reset errors
-    setPasswordErrors({});
-    const errors = {};
-
-    // Validation 1: All fields filled
-    if (!passwordForm.oldPassword) {
-      errors.oldPassword = 'Current password is required';
-    }
-    if (!passwordForm.newPassword) {
-      errors.newPassword = 'New password is required';
-    }
-    if (!passwordForm.confirmPassword) {
-      errors.confirmPassword = 'Confirm password is required';
-    }
-
-    // Validation 2: Password length
-    if (passwordForm.newPassword && passwordForm.newPassword.length < 8) {
-      console.log('Validation failed: Password less than 8 chars');
-      errors.newPassword = 'New password must be at least 8 characters';
-    }
-
-    // Validation 3: Passwords match
-    if (passwordForm.newPassword && passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword) {
-      console.log('Validation failed: Passwords do not match');
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
-    // If there are errors, display them and return
-    if (Object.keys(errors).length > 0) {
-      setPasswordErrors(errors);
-      showToast('Please fix the errors below', 'error');
+    if (!validatePasswordForm(passwordForm, passwordValidationRules)) {
       return;
     }
 
-    console.log('All validations passed, proceeding with dispatch');
     setChangingPassword(true);
     try {
-      console.log('Dispatching changePassword thunk with:', {
-        oldPassword: passwordForm.oldPassword,
-        newPassword: passwordForm.newPassword,
-        confirmPassword: passwordForm.confirmPassword,
-      });
       await dispatch(changePassword({
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword,
         confirmPassword: passwordForm.confirmPassword,
       })).unwrap();
 
-      console.log('Password changed successfully');
       showToast('Password changed successfully!', 'success');
 
-      setPasswordForm({
+      setPasswordFormValues({
         oldPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
       setShowPasswordModal(false);
     } catch (err) {
-      console.error('Error changing password:', err);
       showToast(err || 'Failed to change password', 'error');
     } finally {
       setChangingPassword(false);
@@ -252,7 +232,9 @@ const UserProfilePage = () => {
                       type="text"
                       name="fullName"
                       value={profileForm.fullName}
-                      onChange={handleProfileChange}
+                      onChange={(e) => handleProfileChange(e, profileValidationRules)}
+                      onBlur={(e) => handleProfileBlur('fullName', profileValidationRules)}
+                      error={getProfileFieldError('fullName')}
                       placeholder="Your full name"
                     />
                   </div>
@@ -282,7 +264,9 @@ const UserProfilePage = () => {
                       type="tel"
                       name="phone"
                       value={profileForm.phone}
-                      onChange={handleProfileChange}
+                      onChange={(e) => handleProfileChange(e, profileValidationRules)}
+                      onBlur={(e) => handleProfileBlur('phone', profileValidationRules)}
+                      error={getProfileFieldError('phone')}
                       placeholder="Your phone number"
                     />
                   </div>
@@ -382,7 +366,7 @@ const UserProfilePage = () => {
         isOpen={showPasswordModal}
         onClose={() => {
           setShowPasswordModal(false);
-          setPasswordForm({
+          setPasswordFormValues({
             oldPassword: '',
             newPassword: '',
             confirmPassword: '',
@@ -403,8 +387,9 @@ const UserProfilePage = () => {
                 name="oldPassword"
                 placeholder="••••••••"
                 value={passwordForm.oldPassword}
-                onChange={handlePasswordChange}
-                className={`pl-12 pr-12 ${passwordErrors.oldPassword ? 'border-red-500' : ''}`}
+                onChange={(e) => handlePasswordChange(e, passwordValidationRules)}
+                onBlur={(e) => handlePasswordBlur('oldPassword', passwordValidationRules)}
+                error={getPasswordFieldError('oldPassword')}
               />
               <button
                 type="button"
@@ -418,9 +403,6 @@ const UserProfilePage = () => {
                 )}
               </button>
             </div>
-            {passwordErrors.oldPassword && (
-              <p className="text-red-500 text-sm mt-1">{passwordErrors.oldPassword}</p>
-            )}
           </div>
 
           {/* New Password */}
@@ -435,8 +417,9 @@ const UserProfilePage = () => {
                 name="newPassword"
                 placeholder="••••••••"
                 value={passwordForm.newPassword}
-                onChange={handlePasswordChange}
-                className={`pl-12 pr-12 ${passwordErrors.newPassword ? 'border-red-500' : ''}`}
+                onChange={(e) => handlePasswordChange(e, passwordValidationRules)}
+                onBlur={(e) => handlePasswordBlur('newPassword', passwordValidationRules)}
+                error={getPasswordFieldError('newPassword')}
               />
               <button
                 type="button"
@@ -450,9 +433,6 @@ const UserProfilePage = () => {
                 )}
               </button>
             </div>
-            {passwordErrors.newPassword && (
-              <p className="text-red-500 text-sm mt-1">{passwordErrors.newPassword}</p>
-            )}
           </div>
 
           {/* Confirm Password */}
@@ -467,8 +447,9 @@ const UserProfilePage = () => {
                 name="confirmPassword"
                 placeholder="••••••••"
                 value={passwordForm.confirmPassword}
-                onChange={handlePasswordChange}
-                className={`pl-12 pr-12 ${passwordErrors.confirmPassword ? 'border-red-500' : ''}`}
+                onChange={(e) => handlePasswordChange(e, passwordValidationRules)}
+                onBlur={(e) => handlePasswordBlur('confirmPassword', passwordValidationRules)}
+                error={getPasswordFieldError('confirmPassword')}
               />
               <button
                 type="button"
@@ -482,9 +463,6 @@ const UserProfilePage = () => {
                 )}
               </button>
             </div>
-            {passwordErrors.confirmPassword && (
-              <p className="text-red-500 text-sm mt-1">{passwordErrors.confirmPassword}</p>
-            )}
           </div>
 
           {/* Buttons */}

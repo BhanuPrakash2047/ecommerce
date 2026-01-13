@@ -1,13 +1,3 @@
-import toast from 'react-hot-toast';
+// Re-export from components/common/Toast.jsx for consistent imports
+export { showToast, removeToast } from '@/components/common/Toast';
 
-export const showToast = (message, type = 'success') => {
-  if (type === 'error') {
-    toast.error(message);
-  } else if (type === 'success') {
-    toast.success(message);
-  } else if (type === 'loading') {
-    toast.loading(message);
-  } else {
-    toast(message);
-  }
-};

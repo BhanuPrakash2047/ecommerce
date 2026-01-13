@@ -25,6 +25,9 @@ const notificationSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    resetNotifications: () => {
+      return initialState;
     }
   },
   extraReducers: (builder) => {
@@ -117,5 +120,5 @@ const notificationSlice = createSlice({
   }
 });
 
-export const { clearError } = notificationSlice.actions;
+export const { clearError, resetNotifications } = notificationSlice.actions;
 export default notificationSlice.reducer;

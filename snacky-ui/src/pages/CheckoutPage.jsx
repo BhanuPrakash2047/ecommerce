@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,11 +9,12 @@ import { fetchAddresses, createAddress, updateAddress, deleteAddress } from '@/s
 import { createOrder } from '@/store/thunks/orderThunks';
 import { fetchCart } from '@/store/thunks/cartThunks';
 import { showToast } from '@/utils/toast';
+import { useFormValidation } from '@/hooks';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user } = useSelector(state => state.auth);
+  const { user, token } = useSelector(state => state.auth);
   const { items = [], loading: cartLoading, discountAmount: cartDiscount = '0' } = useSelector(state => state.cart || {});
   const { items: addresses = [], loading: addressLoading } = useSelector(state => state.addresses || {});
 
@@ -23,8 +25,9 @@ const CheckoutPage = () => {
   const [placing, setPlacing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [error, setError] = useState(null);
-
-  const [addressForm, setAddressForm] = useState({
+  const apiBase = import.meta.env.VITE_API_URL;
+  
+  const { formData: addressForm, errors, touched, handleChange, handleBlur, validateForm, getFieldError, setFormValues } = useFormValidation({
     fullName: '',
     phoneNumber: '',
     addressLine1: '',
@@ -33,6 +36,16 @@ const CheckoutPage = () => {
     state: '',
     zipCode: '',
   });
+
+  const addressValidationRules = {
+    fullName: 'fullName',
+    phoneNumber: 'phone',
+    addressLine1: 'addressLine',
+    addressLine2: 'addressLine',
+    city: 'required',
+    state: 'required',
+    zipCode: 'zipCode',
+  };
 
   // Redirect if not logged in
   useEffect(() => {
@@ -73,7 +86,7 @@ const CheckoutPage = () => {
 
   const handleAddAddress = () => {
     setEditingAddressId(null);
-    setAddressForm({
+    setFormValues({
       fullName: '',
       phoneNumber: '',
       addressLine1: '',
@@ -87,7 +100,7 @@ const CheckoutPage = () => {
 
   const handleEditAddress = (address) => {
     setEditingAddressId(address.id);
-    setAddressForm({
+    setFormValues({
       fullName: address.fullName,
       phoneNumber: address.phoneNumber,
       addressLine1: address.addressLine1,
@@ -100,11 +113,8 @@ const CheckoutPage = () => {
   };
 
   const handleSaveAddress = async () => {
-    // Validate required fields
-    if (!addressForm.fullName.trim() || !addressForm.phoneNumber.trim() ||
-        !addressForm.addressLine1.trim() || !addressForm.city.trim() ||
-        !addressForm.state.trim() || !addressForm.zipCode.trim()) {
-      showToast('Please fill all required fields', 'error');
+    // Validate form using validation rules
+    if (!validateForm(addressForm, addressValidationRules)) {
       return;
     }
 
@@ -176,15 +186,6 @@ const CheckoutPage = () => {
   };
 
   const initializeRazorpay = (orderResponse) => {
-    console.log('🔍 Razorpay Order Response:', orderResponse);
-    
-    // Log all required fields
-    console.log('✅ Razorpay Key:', import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_RyEfqhx8DTtt9q');
-    console.log('✅ Order ID:', orderResponse.razorpayOrderId);
-    console.log('✅ Amount:', orderResponse.amount);
-    console.log('✅ Email:', orderResponse.email);
-    console.log('✅ Phone:', orderResponse.phone);
-
     const options = {
       key: import.meta.env.VITE_RAZORPAY_KEY,
       amount: orderResponse.amount, // Amount from backend (already in paise)
@@ -201,7 +202,6 @@ const CheckoutPage = () => {
       
       // ✅ SUCCESS HANDLER
       handler: async function(response) {
-        console.log('✅ Payment Successful!', response);
         await handlePaymentSuccess(
           orderResponse.razorpayOrderId,
           response.razorpay_payment_id,
@@ -223,24 +223,18 @@ const CheckoutPage = () => {
       // ❌ FAILURE HANDLER - when user dismisses modal
       modal: {
         ondismiss: function() {
-          console.log('❌ Payment modal closed by user');
           handlePaymentCancelled(orderResponse.razorpayOrderId);
         },
       },
     };
 
-    console.log('📋 Razorpay Options:', options);
-
     // Load and open Razorpay
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.onload = () => {
-      console.log('✅ Razorpay SDK loaded successfully');
       try {
         const rzp = new window.Razorpay(options);
-        console.log('✅ Razorpay instance created');
         rzp.open();
-        console.log('✅ Razorpay modal opened');
       } catch (err) {
         console.error('❌ Razorpay Error:', err);
         setError('Razorpay Error: ' + err.message);
@@ -257,20 +251,15 @@ const CheckoutPage = () => {
 
   // ========== PAYMENT SUCCESS HANDLER ==========
   const handlePaymentSuccess = async (razorpayOrderId, razorpayPaymentId, signature, orderResponse) => {
-    console.log('Handling payment success...');
-    console.log('- Razorpay Order ID:', razorpayOrderId);
-    console.log('- Razorpay Payment ID:', razorpayPaymentId);
-    console.log('- Signature:', signature);
-
     try {
       // Call backend webhook endpoint to verify payment
       const response = await fetch(
-        `http://localhost:8080/api/payments/webhook/success?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=${razorpayPaymentId}&signature=${signature}`,
+        `${apiBase}/payments/webhook/success?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=${razorpayPaymentId}&signature=${signature}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`, 
+            'Authorization': `Bearer ${token}`, 
           },
         }
       );
@@ -287,10 +276,7 @@ const CheckoutPage = () => {
         setError('Payment verification failed: ' + (data.error || 'Unknown error'));
         showToast('Payment verification failed: ' + (data.error || 'Unknown error'), 'error');
       }
-
-      console.log('Payment Success Response:', data);
     } catch (error) {
-      console.error('Payment Success Error:', error);
       setError('Failed to verify payment: ' + error.message);
       showToast('Failed to verify payment', 'error');
     }
@@ -298,26 +284,21 @@ const CheckoutPage = () => {
 
   // ========== PAYMENT CANCELLED HANDLER ==========
   const handlePaymentCancelled = async (razorpayOrderId) => {
-    console.log('Payment cancelled by user');
-    console.log('- Razorpay Order ID:', razorpayOrderId);
-
     try {
       // Optionally call backend to mark order as failed/cancelled
       const response = await fetch(
-        `http://localhost:8080/api/payments/webhook/failure?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=cancelled`,
+        `${apiBase}/payments/webhook/failure?razorpayOrderId=${razorpayOrderId}&razorpayPaymentId=cancelled`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`, 
+            'Authorization': `Bearer ${token}`, 
 
           },
         }
       );
 
       const data = await response.json();
-      console.log('Payment Cancellation Response:', data);
-
       showToast('Payment cancelled. Your order is saved. You can retry anytime.', 'info');
       setError('Payment cancelled by user. You can try again.');
     } catch (error) {
@@ -574,7 +555,6 @@ const CheckoutPage = () => {
         </div>
       </div>
 
-      {/* Address Modal */}
       <Modal
         isOpen={showAddressModal}
         onClose={() => setShowAddressModal(false)}
@@ -584,39 +564,52 @@ const CheckoutPage = () => {
           <Input
             placeholder="Full Name *"
             value={addressForm.fullName}
-            onChange={(e) => setAddressForm({ ...addressForm, fullName: e.target.value })}
+            onChange={(e) => handleChange(e, addressValidationRules)}
+            onBlur={(e) => handleBlur('fullName', addressValidationRules)}
+            error={getFieldError('fullName')}
           />
           <Input
             placeholder="Phone Number *"
             value={addressForm.phoneNumber}
-            onChange={(e) => setAddressForm({ ...addressForm, phoneNumber: e.target.value })}
+            onChange={(e) => handleChange(e, addressValidationRules)}
+            onBlur={(e) => handleBlur('phoneNumber', addressValidationRules)}
+            error={getFieldError('phoneNumber')}
           />
           <Input
             placeholder="Address Line 1 *"
             value={addressForm.addressLine1}
-            onChange={(e) => setAddressForm({ ...addressForm, addressLine1: e.target.value })}
+            onChange={(e) => handleChange(e, addressValidationRules)}
+            onBlur={(e) => handleBlur('addressLine1', addressValidationRules)}
+            error={getFieldError('addressLine1')}
           />
           <Input
             placeholder="Address Line 2 (Optional)"
             value={addressForm.addressLine2}
-            onChange={(e) => setAddressForm({ ...addressForm, addressLine2: e.target.value })}
+            onChange={(e) => handleChange(e, addressValidationRules)}
+            onBlur={(e) => handleBlur('addressLine2', addressValidationRules)}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
               placeholder="City *"
               value={addressForm.city}
-              onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+              onChange={(e) => handleChange(e, addressValidationRules)}
+              onBlur={(e) => handleBlur('city', addressValidationRules)}
+              error={getFieldError('city')}
             />
             <Input
               placeholder="State *"
               value={addressForm.state}
-              onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+              onChange={(e) => handleChange(e, addressValidationRules)}
+              onBlur={(e) => handleBlur('state', addressValidationRules)}
+              error={getFieldError('state')}
             />
           </div>
           <Input
             placeholder="PIN Code *"
             value={addressForm.zipCode}
-            onChange={(e) => setAddressForm({ ...addressForm, zipCode: e.target.value })}
+            onChange={(e) => handleChange(e, addressValidationRules)}
+            onBlur={(e) => handleBlur('zipCode', addressValidationRules)}
+            error={getFieldError('zipCode')}
           />
 
           <div className="flex gap-3">

@@ -198,42 +198,47 @@ const NotificationsPage = () => {
         </div>
 
         {/* Filter & Actions */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-8">
+        <div className="flex flex-col lg:flex-row gap-6 mb-8 items-start lg:items-center justify-between">
           {/* Type Filter */}
           <div className="flex gap-2 flex-wrap">
             {notificationTypes.map(type => (
-              <Button
+              <button
                 key={type.value}
                 onClick={() => setFilterType(type.value)}
-                variant={filterType === type.value ? 'primary' : 'outline'}
-                size="sm"
+                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                  filterType === type.value
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 border border-gray-300'
+                }`}
               >
                 {type.label}
-              </Button>
+              </button>
             ))}
           </div>
 
           {/* Status Filter & Actions */}
-          <div className="flex gap-2 ml-auto">
-            <div className="flex gap-2">
+          <div className="flex gap-3 w-full lg:w-auto lg:ml-auto items-center">
+            <div className="flex gap-2 flex-wrap">
               {['all', 'unread', 'read'].map(status => (
-                <Button
+                <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
-                  variant={filterStatus === status ? 'primary' : 'outline'}
-                  size="sm"
-                  className="capitalize"
+                  className={`px-4 py-2 rounded-lg font-bold text-sm capitalize transition-all duration-300 ${
+                    filterStatus === status
+                      ? 'bg-orange-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 border border-gray-300'
+                  }`}
                 >
                   {status}
-                </Button>
+                </button>
               ))}
             </div>
             {unreadCount > 0 && (
               <Button
                 onClick={handleMarkAllAsRead}
-                variant="outline"
+                variant="primary"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 whitespace-nowrap ml-2 bg-green-600"
               >
                 <Check className="w-4 h-4" />
                 Mark All Read
@@ -279,14 +284,14 @@ const NotificationsPage = () => {
             </p>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredNotifications.map(notification => (
               <Card
                 key={notification.id}
-                className={`p-6 transition-all ${
+                className={`p-5 transition-all duration-300 ${
                   !notification.isRead
-                    ? 'bg-gradient-to-r from-blue-50 to-transparent border-l-4 border-brand-500'
-                    : 'hover:shadow-md'
+                    ? 'bg-linear-to-r from-blue-50 to-white border-l-4 border-brand-500 shadow-md'
+                    : 'bg-white hover:shadow-md'
                 }`}
               >
                 <div className="flex items-start gap-4">
@@ -298,22 +303,24 @@ const NotificationsPage = () => {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-slate-900 text-lg">
+                      <div className="flex-1">
+                        <h3 className={`font-semibold text-lg transition-colors ${
+                          !notification.isRead ? 'text-slate-900' : 'text-slate-700'
+                        }`}>
                           {notification.title}
                         </h3>
-                        <p className="text-slate-600 text-sm mt-1">
+                        <p className="text-slate-600 text-sm mt-1.5">
                           {notification.message}
                         </p>
                       </div>
                       {!notification.isRead && (
-                        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-500 mt-2"></div>
+                        <div className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-brand-500 mt-2 animate-pulse"></div>
                       )}
                     </div>
 
                     {/* Type Badge & Date */}
-                    <div className="flex items-center gap-3 mt-4">
-                      <Badge variant={getTypeColor(notification.type)}>
+                    <div className="flex items-center gap-3 mt-3.5">
+                      <Badge variant={getTypeColor(notification.type)} size="sm">
                         {notification.type?.replace(/_/g, ' ')}
                       </Badge>
                       <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -328,7 +335,7 @@ const NotificationsPage = () => {
                     {!notification.isRead && (
                       <button
                         onClick={() => handleMarkAsRead(notification.id, notification.isRead)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-500 hover:text-slate-700"
+                        className="p-2 hover:bg-brand-100 rounded-lg transition text-slate-500 hover:text-brand-600"
                         title="Mark as read"
                       >
                         <Check className="w-5 h-5" />
