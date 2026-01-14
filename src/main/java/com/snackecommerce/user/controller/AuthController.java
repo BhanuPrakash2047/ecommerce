@@ -1,5 +1,6 @@
 package com.snackecommerce.user.controller;
 
+import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.common.util.JwtUtil;
 import com.snackecommerce.user.dto.ChangePasswordRequest;
 import com.snackecommerce.user.dto.JwtResponse;
@@ -28,6 +29,7 @@ public class AuthController {
      * Traditional JWT login with username/email and password
      */
     @PostMapping("/login")
+    @RateLimit(value = "login", useAuthenticatedUser = false)
     public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         JwtResponse response = authService.login(loginRequest);
         return ResponseEntity.ok(response);
@@ -37,6 +39,7 @@ public class AuthController {
      * User registration with JWT token
      */
     @PostMapping("/register")
+    @RateLimit(value = "register", useAuthenticatedUser = false)
     public ResponseEntity<JwtResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
         JwtResponse response = authService.register(registerRequest);
         return ResponseEntity.ok(response);

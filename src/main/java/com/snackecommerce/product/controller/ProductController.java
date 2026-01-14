@@ -1,5 +1,6 @@
 package com.snackecommerce.product.controller;
 
+import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.product.dto.*;
 import com.snackecommerce.product.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ public class ProductController {
      * @return List of all products
      */
     @GetMapping
+    @RateLimit(value = "products", useAuthenticatedUser = false)
     public ResponseEntity<List<ProductResponse>> getAllProducts() {
         List<ProductResponse> products = productService.getAllProducts();
         return ResponseEntity.ok(products);
@@ -49,6 +51,7 @@ public class ProductController {
      * @return Product details or 404 if not found
      */
     @GetMapping("/{productId}")
+    @RateLimit(value = "products", useAuthenticatedUser = false)
     public ResponseEntity<ProductResponse> getProduct(@PathVariable Long productId) {
         ProductResponse product = productService.getProduct(productId);
         return ResponseEntity.ok(product);

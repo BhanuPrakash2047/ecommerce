@@ -1,5 +1,6 @@
 package com.snackecommerce.payment.controller;
 
+import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.payment.dto.CreatePaymentRequest;
 import com.snackecommerce.payment.dto.PaymentResponse;
 import com.snackecommerce.payment.service.PaymentService;
@@ -54,6 +55,7 @@ public class PaymentController {
      */
     @PostMapping("/create")
      @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
+     @RateLimit(value = "payment", useAuthenticatedUser = true)
     public ResponseEntity<?> createPayment(@RequestBody CreatePaymentRequest request) {
         try {
             logger.info("Payment creation request for order ID: {}, amount: {}", request.getOrderId(), request.getAmount());

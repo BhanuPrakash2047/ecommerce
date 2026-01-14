@@ -1,5 +1,6 @@
 package com.snackecommerce.cart.controller;
 
+import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.cart.dto.*;
 import com.snackecommerce.cart.service.CartService;
 import com.snackecommerce.user.repository.UserRepository;
@@ -47,6 +48,7 @@ public class CartController {
      */
     @GetMapping
     @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
+    @RateLimit(value = "cart", useAuthenticatedUser = true)
     public ResponseEntity<CartResponse> viewCart() {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.getCart(userId);
@@ -59,6 +61,7 @@ public class CartController {
      */
     @PostMapping("/items")
     @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
+    @RateLimit(value = "cart", useAuthenticatedUser = true)
     public ResponseEntity<CartResponse> addToCart(@RequestBody AddToCartRequest request) {
         Long userId = getCurrentUserId();
         CartResponse cart = cartService.addToCart(userId, request);

@@ -1,5 +1,6 @@
 package com.snackecommerce.order.controller;
 
+import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.delivery.dto.PincodeAvailabilityResponse;
 import com.snackecommerce.delivery.dto.TrackingResponse;
 import com.snackecommerce.delivery.service.DeliveryService;
@@ -34,6 +35,7 @@ public class OrderTrackingController {
      */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
+    @RateLimit(value = "orders", useAuthenticatedUser = true)
     public ResponseEntity<List<OrderListResponse>> getUserOrders(Principal principal) {
         List<OrderListResponse> orders = orderService.getUserOrdersByEmail(principal.getName());
         return ResponseEntity.ok(orders);
