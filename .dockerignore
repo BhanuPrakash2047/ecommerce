@@ -1,0 +1,33 @@
+# Docker
+.env
+*.log
+
+# Build artifacts (we build inside Docker)
+target/
+!target/snack-ecommerce-0.0.1-SNAPSHOT.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in image)
+*.md
+!README.md
+
+# Test files
+src/test/
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.circleci/
