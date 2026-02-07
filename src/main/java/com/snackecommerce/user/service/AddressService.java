@@ -88,6 +88,7 @@ public class AddressService {
      * @param pincode Pincode to check
      * @return PincodeAvailabilityResponse
      */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public PincodeAvailabilityResponse checkPincodeByValue(String pincode) {
         if (pincode == null || pincode.isEmpty()) {
             return PincodeAvailabilityResponse.builder()
@@ -105,7 +106,7 @@ public class AddressService {
             return PincodeAvailabilityResponse.builder()
                     .pincode(pincode)
                     .isAvailable(false)
-                    .status("API_ERROR")
+                    .status("NOT_SERVICEABLE")
                     .build();
         }
     }
