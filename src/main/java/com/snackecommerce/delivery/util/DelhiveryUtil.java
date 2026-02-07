@@ -669,33 +669,37 @@ public class DelhiveryUtil {
                 
                 // Check if delivery_codes array exists and has data
                 JSONArray deliveryCodes = responseJson.optJSONArray("delivery_codes");
-                logger.info("delivery_codes array: {}, length: {}", deliveryCodes, deliveryCodes != null ? deliveryCodes.length() : 0);
+                int deliveryCodesLength = deliveryCodes != null ? deliveryCodes.length() : 0;
+                logger.info("delivery_codes array exists: {}, length: {}", deliveryCodes != null, deliveryCodesLength);
                 
-                if (deliveryCodes != null && deliveryCodes.length() > 0) {
-                    JSONObject firstEntry = deliveryCodes.getJSONObject(0);
-                    logger.info("First entry in delivery_codes: {}", firstEntry.toString());
-                    
-                    JSONObject pincodeData = firstEntry.optJSONObject("postal_code");
-                    logger.info("postal_code object: {}", pincodeData);
-                    
-                    if (pincodeData != null) {
-                        // Note: Delhivery uses "remarks" (plural), not "remark"
-                        String remark = pincodeData.optString("remarks", "");
-                        logger.info("Pincode {} remark: '{}'", pincode, remark);
-                        
-                        if ("Embargo".equalsIgnoreCase(remark)) {
-                            logger.warn("Pincode {} is temporarily non-serviceable (Embargo)", pincode);
-                            throw new RuntimeException("Pincode temporarily non-serviceable (Embargo)");
-                        }
-                        
-                        logger.info("Pincode {} is serviceable", pincode);
-                        return pincodeData;
-                    }
+                // CRITICAL: If delivery_codes is empty or null, pincode is NOT serviceable
+                if (deliveryCodes == null || deliveryCodesLength == 0) {
+                    logger.warn("Pincode {} is non-serviceable (NSZ) - delivery_codes is empty or missing", pincode);
+                    throw new RuntimeException("Pincode " + pincode + " is not serviceable by Delhivery");
                 }
                 
-                // Empty response means pincode is non-serviceable
-                logger.warn("Pincode {} is non-serviceable (NSZ) - empty or missing delivery_codes", pincode);
-                throw new RuntimeException("Pincode not serviceable");
+                JSONObject firstEntry = deliveryCodes.getJSONObject(0);
+                logger.info("First entry in delivery_codes: {}", firstEntry.toString());
+                
+                JSONObject pincodeData = firstEntry.optJSONObject("postal_code");
+                logger.info("postal_code object: {}", pincodeData);
+                
+                if (pincodeData == null) {
+                    logger.warn("Pincode {} - postal_code object is missing in response", pincode);
+                    throw new RuntimeException("Pincode " + pincode + " is not serviceable - invalid response structure");
+                }
+                
+                // Note: Delhivery uses "remarks" (plural), not "remark"
+                String remark = pincodeData.optString("remarks", "");
+                logger.info("Pincode {} remark: '{}'", pincode, remark);
+                
+                if ("Embargo".equalsIgnoreCase(remark)) {
+                    logger.warn("Pincode {} is temporarily non-serviceable (Embargo)", pincode);
+                    throw new RuntimeException("Pincode " + pincode + " is temporarily non-serviceable (Embargo)");
+                }
+                
+                logger.info("Pincode {} is serviceable", pincode);
+                return pincodeData;
                 
             } else {
                 logger.error("Failed to check pincode. Response code: {}, Response: {}", responseCode, response);

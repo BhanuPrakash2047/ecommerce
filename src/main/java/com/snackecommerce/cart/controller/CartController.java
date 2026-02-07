@@ -11,6 +11,8 @@ import com.snackecommerce.payment.service.PaymentService;
 import com.snackecommerce.payment.dto.CreatePaymentRequest;
 import com.snackecommerce.payment.dto.PaymentResponse;
 import com.snackecommerce.order.entity.Order;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/cart")
 public class CartController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CartController.class);
 
     @Autowired
     private CartService cartService;
@@ -228,22 +232,13 @@ public class CartController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
 
-            // Validate pincode reachability for checkout - always do fresh check
+            // Validate pincode reachability for checkout - always hit Delhivery API directly
             boolean isPincodeReachable = false;
             if (address.getZipCode() != null) {
-                // Do a fresh pincode check directly (bypass cache)
-                try {
-                    var pincodeResponse = addressService.checkPincodeByValue(address.getZipCode());
-                    isPincodeReachable = pincodeResponse.getIsAvailable();
-                    // Update the address cache
-                    if (isPincodeReachable && (address.getPincodeReachable() == null || !address.getPincodeReachable())) {
-                        address.setPincodeReachable(true);
-                        addressRepository.save(address);
-                    }
-                } catch (Exception e) {
-                    // If fresh check fails, fallback to cached value
-                    isPincodeReachable = address.getPincodeReachable() != null && address.getPincodeReachable();
-                }
+                var pincodeResponse = addressService.checkPincodeByValue(address.getZipCode());
+                isPincodeReachable = pincodeResponse.getIsAvailable();
+                logger.info("Delhivery pincode check for {}: isAvailable={}, status={}", 
+                           address.getZipCode(), isPincodeReachable, pincodeResponse.getStatus());
             }
             
             if (!isPincodeReachable) {
