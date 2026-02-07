@@ -2,6 +2,7 @@ package com.snackecommerce.delivery.service;
 
 import com.snackecommerce.common.exception.OrderNotFoundException;
 import com.snackecommerce.delivery.dto.PincodeAvailabilityResponse;
+import com.snackecommerce.delivery.dto.ShipmentResult;
 import com.snackecommerce.delivery.dto.TrackingResponse;
 import com.snackecommerce.delivery.util.DelhiveryUtil;
 import com.snackecommerce.order.entity.Order;
@@ -97,6 +98,7 @@ public class DeliveryService {
             String labelUrl = delhiveryUtil.getShippingLabelUrl(waybill);
 
             // Update order with waybill, tracking agent, and label URL
+            order.setStatus(OrderStatus.SHIPPED);
             order.setTrackingNumber(waybill);
             order.setTrackingAgent(TrackingAgent.DELHIVERY);
             order.setShippingLabelUrl(labelUrl);
@@ -128,6 +130,102 @@ public class DeliveryService {
     }
 
     /**
+     * Create shipment on Delhivery for an order (Synchronous version with result)
+     * This method does NOT throw exceptions - it returns a ShipmentResult object
+     * containing success/failure status and the actual Delhivery error message.
+     * 
+     * Use this for admin flows where you need to show the actual provider error.
+     * 
+     * @param orderId Order ID
+     * @return ShipmentResult containing success/failure and error message from Delhivery
+     */
+    public ShipmentResult createShipmentWithResult(Long orderId) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderId));
+
+            // Get address details from Address entity
+            Address address = addressRepository.findById(order.getAddressId())
+                    .orElseThrow(() -> new RuntimeException("Address not found for order: " + orderId));
+
+            // Check if pincode is serviceable
+            if (address.getZipCode() != null) {
+                PincodeAvailabilityResponse pincodeCheck = checkPincodeAvailability(address.getZipCode());
+                if (!pincodeCheck.getIsAvailable()) {
+                    String errorMsg = "Pincode " + address.getZipCode() + " is not serviceable by Delhivery";
+                    logger.error("Shipment creation failed: {}", errorMsg);
+                    return ShipmentResult.failure(errorMsg);
+                }
+            }
+
+            // Build proper shipment payload with address from Address entity
+            String fullAddress = address.getAddressLine1();
+            if (address.getAddressLine2() != null && !address.getAddressLine2().isEmpty()) {
+                fullAddress += ", " + address.getAddressLine2();
+            }
+            
+            JSONObject shipmentRequest = delhiveryUtil.buildShipmentPayload(
+                    order.getOrderNumber(),
+                    fullAddress,
+                    address.getCity(),
+                    address.getZipCode(),
+                    address.getState(),
+                    address.getCountry(),
+                    null,  // landmark (not in Address entity)
+                    address.getPhoneNumber(),
+                    address.getFullName()
+            );
+
+            JSONObject response = delhiveryUtil.createShipment(shipmentRequest);
+            
+            // Extract waybill number from response
+            String waybill = delhiveryUtil.extractWaybillNumber(response);
+
+            if (waybill == null || waybill.isEmpty()) {
+                String errorMsg = "No waybill received from Delhivery - shipment may not have been created";
+                logger.error("Shipment creation failed: {}", errorMsg);
+                return ShipmentResult.failure(errorMsg);
+            }
+
+            // Get label URL for on-the-fly download
+            String labelUrl = delhiveryUtil.getShippingLabelUrl(waybill);
+
+            // Update order with waybill, tracking agent, and label URL
+            order.setStatus(OrderStatus.SHIPPED);
+            order.setTrackingNumber(waybill);
+            order.setTrackingAgent(TrackingAgent.DELHIVERY);
+            order.setShippingLabelUrl(labelUrl);
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
+
+            logger.info("Shipment created for order {} with waybill: {} and label URL: {}", 
+                       orderId, waybill, labelUrl);
+
+            // Send notification to user: Shipment created with tracking
+            try {
+                notificationService.notifyShipmentCreated(
+                    order.getUserId(),
+                    order.getId(),
+                    order.getOrderNumber(),
+                    waybill,
+                    labelUrl
+                );
+                logger.info("Notification sent to user {} for shipment created", order.getUserId());
+            } catch (Exception e) {
+                logger.error("Failed to send shipment notification: {}", e.getMessage());
+            }
+
+            return ShipmentResult.success(waybill, labelUrl);
+            
+        } catch (Exception e) {
+            // Return the actual error message from Delhivery
+            String errorMsg = e.getMessage();
+            logger.error("Shipment creation failed for order {}: {}", orderId, errorMsg, e);
+            return ShipmentResult.failure(errorMsg);
+        }
+    }
+
+    /**
      * Get tracking information for an order
      * 
      * @param orderId Order ID
@@ -138,9 +236,9 @@ public class DeliveryService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order not found: " + orderId));
 
-        if (order.getTrackingNumber() == null || order.getTrackingNumber().isEmpty()) {
-            throw new RuntimeException("No tracking number available for this order");
-        }
+//        if (order.getTrackingNumber() == null || order.getTrackingNumber().isEmpty()) {
+//            throw new RuntimeException("No tracking number available for this order");
+//        }
 
         try {
             JSONObject trackingData = delhiveryUtil.trackShipment(order.getTrackingNumber());
@@ -181,17 +279,39 @@ public class DeliveryService {
     public PincodeAvailabilityResponse checkPincodeAvailability(String pincode) throws Exception {
         try {
             JSONObject pincodeData = delhiveryUtil.checkPincodeAvailability(pincode);
+            
+            // Delhivery response structure:
+            // pre_paid: "Y"/"N" - prepaid delivery available
+            // cod: "Y"/"N" - COD available
+            // remarks: "" (empty = serviceable), "Embargo" (temporarily not serviceable)
+            // city, district, state_code, pin, etc.
+            
+            String prePaid = pincodeData.optString("pre_paid", "N");
+            String cod = pincodeData.optString("cod", "N");
+            String remarks = pincodeData.optString("remarks", "");
+            String city = pincodeData.optString("city", "");
+            String stateCode = pincodeData.optString("state_code", "");
+            
+            // Pincode is available if prepaid or COD is available and not under embargo
+            boolean isAvailable = ("Y".equalsIgnoreCase(prePaid) || "Y".equalsIgnoreCase(cod)) 
+                                  && !"Embargo".equalsIgnoreCase(remarks);
+            
+            String status = isAvailable ? "SERVICEABLE" : "NOT_SERVICEABLE";
+            if ("Embargo".equalsIgnoreCase(remarks)) {
+                status = "EMBARGO";
+            }
 
             PincodeAvailabilityResponse response = PincodeAvailabilityResponse.builder()
                     .pincode(pincode)
-                    .isAvailable("SERVICEABLE".equals(pincodeData.optString("status", "")))
-                    .status(pincodeData.optString("status", "UNKNOWN"))
-                    .estimatedDeliveryDays((double) pincodeData.optInt("days", 0))
-                    .region(pincodeData.optString("region", ""))
-                    .state(pincodeData.optString("state", ""))
+                    .isAvailable(isAvailable)
+                    .status(status)
+                    .estimatedDeliveryDays(3.0) // Default estimate
+                    .region(city)
+                    .state(stateCode)
                     .build();
 
-            logger.info("Pincode {} availability: {}", pincode, response.getStatus());
+            logger.info("Pincode {} availability: {} (prepaid={}, cod={}, remarks={})", 
+                       pincode, status, prePaid, cod, remarks);
             return response;
         } catch (Exception e) {
             logger.error("Failed to check pincode availability: {}", pincode, e);

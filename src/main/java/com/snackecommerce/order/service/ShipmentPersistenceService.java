@@ -70,7 +70,7 @@ public class ShipmentPersistenceService {
             try {
                 Order order = orderRepository.findById(job.getOrderId()).orElse(null);
                 if (order != null) {
-                    Long adminUserId = 1L;
+                    Long adminUserId = 2L;
                     notificationService.notifyAdminShipmentFailure(
                             adminUserId,
                             order.getId(),

@@ -5,6 +5,7 @@ import com.snackecommerce.cart.repository.CartItemRepository;
 import com.snackecommerce.cart.repository.CartRepository;
 import com.snackecommerce.common.exception.CartNotFoundException;
 import com.snackecommerce.common.exception.NotificationException;
+import com.snackecommerce.delivery.dto.ShipmentResult;
 import com.snackecommerce.order.entity.Order;
 import com.snackecommerce.order.enums.OrderStatus;
 import com.snackecommerce.order.repository.OrderItemRepository;
@@ -253,11 +254,15 @@ public class PaymentService {
      * Manual payment success handler (for admin override when webhook fails)
      * Does NOT verify Razorpay signature - admin manually verifies in Razorpay dashboard
      * 
+     * This method uses SYNCHRONOUS shipment creation so admin can see the actual
+     * Delhivery error message immediately if shipment fails.
+     * 
      * @param orderId Order ID
+     * @return ShipmentResult containing success/failure and actual Delhivery error message
      * @throws Exception if order/payment not found
      */
     @Transactional
-    public void manualMarkPaymentSuccess(Long orderId) throws Exception {
+    public ShipmentResult manualMarkPaymentSuccess(Long orderId) throws Exception {
         logger.info("Admin: Manually marking payment as SUCCESS for order ID: {}", orderId);
 
         Order order = orderRepository.findById(orderId)
@@ -269,7 +274,12 @@ public class PaymentService {
 
         if (payment.getStatus().equals(PaymentStatus.SUCCESS)) {
             logger.info("Payment already marked SUCCESS for order: {}", orderId);
-            return;
+            // Payment already done, but try to create shipment if not yet created
+            if (order.getTrackingNumber() != null) {
+                return ShipmentResult.success(order.getTrackingNumber(), order.getShippingLabelUrl());
+            }
+            // Payment done but no shipment yet - try to create it
+            return deliveryService.createShipmentWithResult(orderId);
         }
 
         // Mark payment as success
@@ -300,16 +310,21 @@ public class PaymentService {
             logger.error("Failed to send notification for payment received: {}", e.getMessage());
         }
 
-        // Create shipment on Delhivery
-        try {
-            String waybill = deliveryService.createShipment(order.getId());
-            logger.info("Shipment created successfully for order ID: {} with waybill: {}", order.getId(), waybill);
-        } catch (Exception e) {
-            logger.error("Failed to create shipment for order ID: {}. Saving to retry queue.", order.getId(), e);
-            // Save failed shipment as a retry job - will be retried automatically by scheduler
-            shipmentJobService.saveFailedShipment(order.getId(), e.getMessage());
-            logger.info("Shipment job created for order {} - will retry automatically", order.getId());
+        // Create shipment on Delhivery - SYNCHRONOUS for admin flow
+        // This allows us to return the actual Delhivery error message to the admin
+        ShipmentResult shipmentResult = deliveryService.createShipmentWithResult(orderId);
+        
+        if (!shipmentResult.isSuccess()) {
+            // Shipment failed - save to retry queue for automatic retry
+            logger.error("Shipment creation failed for order {}: {}", orderId, shipmentResult.getErrorMessage());
+            shipmentJobService.saveFailedShipment(orderId, shipmentResult.getErrorMessage());
+            logger.info("Shipment job created for order {} - will retry automatically", orderId);
+        } else {
+            logger.info("Shipment created successfully for order {} with waybill: {}", 
+                       orderId, shipmentResult.getWaybill());
         }
+        
+        return shipmentResult;
     }
 
     /**

@@ -4,10 +4,13 @@ import com.snackecommerce.common.annotation.RateLimit;
 import com.snackecommerce.delivery.dto.PincodeAvailabilityResponse;
 import com.snackecommerce.delivery.dto.TrackingResponse;
 import com.snackecommerce.delivery.service.DeliveryService;
+import com.snackecommerce.order.dto.AdminOrderStatsRequest;
+import com.snackecommerce.order.dto.AdminOrderStatsResponse;
 import com.snackecommerce.order.dto.OrderListResponse;
 import com.snackecommerce.order.dto.OrderResponse;
 import com.snackecommerce.order.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -109,15 +113,58 @@ public class OrderTrackingController {
     }
 
     /**
-     * Admin endpoint: Get order analytics
+     * Admin endpoint: Get comprehensive order statistics with filters
+     * 
+     * Single endpoint for all admin order stats and filtering needs.
+     * 
+     * Query params:
+     * - startDate: Filter orders from this date (yyyy-MM-dd)
+     * - endDate: Filter orders until this date (yyyy-MM-dd)
+     * - status: Filter by order status (CREATED, PAYMENT_PENDING, PAID, CONFIRMED, SHIPPED, DELIVERED, RETURNED, CANCELLED)
+     * - includeRecentOrders: Include recent orders list (default: true)
+     * - includeTopProducts: Include top selling products (default: false)
+     * - recentOrdersLimit: Number of recent orders to include (default: 10)
+     * - includeAllOrders: Include all filtered orders in response (default: false)
+     * 
+     * Example usage:
+     * - GET /admin/stats - Get all stats
+     * - GET /admin/stats?status=DELIVERED - Stats for delivered orders only
+     * - GET /admin/stats?startDate=2026-01-01&endDate=2026-01-31 - Stats for January
+     * - GET /admin/stats?includeAllOrders=true&status=PENDING - Get all pending orders with stats
+     * - GET /admin/stats?includeTopProducts=true - Include top selling products
      */
-    @GetMapping("/admin/analytics")
+    @GetMapping("/admin/stats")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> getOrderAnalytics() {
-        try {
-            return ResponseEntity.ok(orderService.getOrderAnalytics());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error fetching analytics");
-        }
+    public ResponseEntity<AdminOrderStatsResponse> getAdminOrderStats(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, defaultValue = "true") Boolean includeRecentOrders,
+            @RequestParam(required = false, defaultValue = "false") Boolean includeTopProducts,
+            @RequestParam(required = false, defaultValue = "10") Integer recentOrdersLimit,
+            @RequestParam(required = false, defaultValue = "false") Boolean includeAllOrders) {
+        
+        AdminOrderStatsRequest request = AdminOrderStatsRequest.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .status(status)
+                .includeRecentOrders(includeRecentOrders)
+                .includeTopProducts(includeTopProducts)
+                .recentOrdersLimit(recentOrdersLimit)
+                .includeAllOrders(includeAllOrders)
+                .build();
+        
+        AdminOrderStatsResponse stats = orderService.getAdminOrderStats(request);
+        return ResponseEntity.ok(stats);
+    }
+    
+    /**
+     * Admin endpoint: Get specific order details (admin can view any order)
+     */
+    @GetMapping("/admin/{orderId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OrderResponse> getOrderDetailsAdmin(@PathVariable Long orderId) {
+        OrderResponse order = orderService.getOrderDetails(orderId, null);
+        return ResponseEntity.ok(order);
     }
 }

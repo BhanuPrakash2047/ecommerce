@@ -1,5 +1,6 @@
 package com.snackecommerce.payment.controller;
 
+import com.snackecommerce.delivery.dto.ShipmentResult;
 import com.snackecommerce.order.entity.Order;
 import com.snackecommerce.order.enums.OrderStatus;
 import com.snackecommerce.order.repository.OrderRepository;
@@ -88,7 +89,13 @@ public class AdminPaymentController {
      * Manually mark a payment as successful (webhook failed scenario)
      * 
      * Request: { "verificationNote": "Verified in Razorpay dashboard" }
-     * Response: { "status": "success", "message": "Order confirmed and shipment created", "order": {...} }
+     * Response: { 
+     *   "status": "success", 
+     *   "message": "Order confirmed...",
+     *   "shipmentSuccess": true/false,
+     *   "shipmentError": "Actual Delhivery error message" (if failed),
+     *   "order": {...} 
+     * }
      */
     @PostMapping("/{orderId}/mark-success")
     @PreAuthorize("hasRole('ADMIN')")
@@ -106,19 +113,33 @@ public class AdminPaymentController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
             
-            // Call manual payment success handler
-            paymentService.manualMarkPaymentSuccess(orderId);
+            // Call manual payment success handler - now returns ShipmentResult
+            ShipmentResult shipmentResult = paymentService.manualMarkPaymentSuccess(orderId);
             
             // Fetch updated order
             Order updatedOrder = orderRepository.findById(orderId).get();
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Payment marked SUCCESS, order CONFIRMED, shipment created (or queued for retry)");
             response.put("orderId", updatedOrder.getId());
             response.put("orderNumber", updatedOrder.getOrderNumber());
-            response.put("orderStatus", updatedOrder.getStatus());
-            response.put("trackingNumber", updatedOrder.getTrackingNumber());
+            response.put("orderStatus", updatedOrder.getStatus().toString());
+            
+            // Include shipment result details
+            response.put("shipmentSuccess", shipmentResult.isSuccess());
+            
+            if (shipmentResult.isSuccess()) {
+                response.put("message", "Payment marked SUCCESS, order CONFIRMED, shipment created successfully");
+                response.put("trackingNumber", shipmentResult.getWaybill());
+                response.put("shippingLabelUrl", shipmentResult.getLabelUrl());
+            } else {
+                // Shipment failed - include the actual Delhivery error message
+                response.put("message", "Payment marked SUCCESS, order CONFIRMED, but shipment creation FAILED");
+                response.put("shipmentError", shipmentResult.getErrorMessage());
+                response.put("trackingNumber", null);
+                // Note: Shipment will be retried automatically by the scheduler
+                response.put("note", "Shipment has been queued for automatic retry");
+            }
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {

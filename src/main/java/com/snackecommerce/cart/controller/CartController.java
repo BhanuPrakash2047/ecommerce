@@ -228,14 +228,31 @@ public class CartController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
 
-//            // Validate pincode reachability for checkout
-//            if (address.getPincodeReachable() == null || !address.getPincodeReachable()) {
-//                Map<String, String> error = new HashMap<>();
-//                error.put("error", "Pincode is not serviceable for delivery");
-//                error.put("pincode", address.getZipCode());
-//                error.put("suggestion", "Check pincode reachability using GET /api/address/check-pincode?pincode=" + address.getZipCode());
-//                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-//            }
+            // Validate pincode reachability for checkout - always do fresh check
+            boolean isPincodeReachable = false;
+            if (address.getZipCode() != null) {
+                // Do a fresh pincode check directly (bypass cache)
+                try {
+                    var pincodeResponse = addressService.checkPincodeByValue(address.getZipCode());
+                    isPincodeReachable = pincodeResponse.getIsAvailable();
+                    // Update the address cache
+                    if (isPincodeReachable && (address.getPincodeReachable() == null || !address.getPincodeReachable())) {
+                        address.setPincodeReachable(true);
+                        addressRepository.save(address);
+                    }
+                } catch (Exception e) {
+                    // If fresh check fails, fallback to cached value
+                    isPincodeReachable = address.getPincodeReachable() != null && address.getPincodeReachable();
+                }
+            }
+            
+            if (!isPincodeReachable) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Pincode is not serviceable for delivery");
+                error.put("pincode", address.getZipCode());
+                error.put("suggestion", "Check pincode reachability using GET /api/address/check-pincode?pincode=" + address.getZipCode());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
 
             // Step 3: Create order from cart with address reference
             Order order = cartService.proceedToCheckout(userId, addressId, receiverName, 
@@ -251,7 +268,7 @@ public class CartController {
             
             PaymentResponse paymentResponse = paymentService.createPayment(paymentRequest);
             
-            // Step 5: Return Razorpay details to frontend
+                // Step 5: Return Razorpay details to frontend
             Map<String, Object> response = new HashMap<>();
             response.put("orderId", order.getId());
             response.put("orderNumber", order.getOrderNumber());
