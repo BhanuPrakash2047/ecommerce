@@ -201,17 +201,10 @@ public class CartController {
 
             // Step 2: Get customer and address details from request
             String email = getCurrentUserEmail();
-            String phone = "+917995369175"; // (String) request.get("phone");
             Long addressId = id;
             String receiverName = "";
             String receiverPhone = "";
             String receiverEmail = "";
-            
-            if (email == null || phone == null || addressId == null) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Email, phone, addressId, receiver name, receiver phone, and receiver email are required");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-            }
 
             // Validate address exists
             Address address = addressRepository.findById(addressId)
@@ -221,6 +214,24 @@ public class CartController {
                 error.put("error", "Address not found");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
             }
+            
+            // Get phone number: first from User entity, fallback to Address
+            String phone = null;
+            var userOptional = userRepository.findByEmail(email);
+            if (userOptional.isPresent() && userOptional.get().getPhone() != null && !userOptional.get().getPhone().isEmpty()) {
+                phone = userOptional.get().getPhone();
+                logger.info("Using phone from user entity: {}", phone);
+            } else {
+                phone = address.getPhoneNumber();
+                logger.info("Using phone from address: {}", phone);
+            }
+            
+            if (email == null || phone == null || addressId == null) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Email, phone, addressId, receiver name, receiver phone, and receiver email are required");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
             receiverName = address.getFullName();
             receiverPhone = address.getPhoneNumber();
             receiverEmail = email;
