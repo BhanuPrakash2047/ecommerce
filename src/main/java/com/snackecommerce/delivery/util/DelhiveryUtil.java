@@ -458,15 +458,63 @@ public class DelhiveryUtil {
                 logger.info("Delhivery label response: {}", response);
                 
                 try {
-                    JSONObject responseJson = new JSONObject(response);
+                    String s3Url = null;
                     
-                    // Extract S3 PDF link from response (multiple field name possibilities)
-                    String s3Url = responseJson.optString("pdf_link");
-                    if (s3Url == null || s3Url.isEmpty()) {
-                        s3Url = responseJson.optString("url");
-                    }
-                    if (s3Url == null || s3Url.isEmpty()) {
-                        s3Url = responseJson.optString("link");
+                    // Try to parse as JSON object first
+                    if (response.trim().startsWith("{")) {
+                        JSONObject responseJson = new JSONObject(response);
+                        
+                        // Check for packages array (common Delhivery response format)
+                        if (responseJson.has("packages")) {
+                            JSONArray packages = responseJson.optJSONArray("packages");
+                            if (packages != null && packages.length() > 0) {
+                                JSONObject pkg = packages.optJSONObject(0);
+                                if (pkg != null) {
+                                    s3Url = pkg.optString("pdf_download_link");
+                                    if (s3Url == null || s3Url.isEmpty()) {
+                                        s3Url = pkg.optString("pdf_link");
+                                    }
+                                    if (s3Url == null || s3Url.isEmpty()) {
+                                        s3Url = pkg.optString("url");
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Try direct fields if packages didn't work
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            s3Url = responseJson.optString("pdf_download_link");
+                        }
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            s3Url = responseJson.optString("pdf_link");
+                        }
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            s3Url = responseJson.optString("url");
+                        }
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            s3Url = responseJson.optString("link");
+                        }
+                        
+                        // Log all keys for debugging if still not found
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            logger.warn("No PDF link found. Response keys: {}", responseJson.keySet());
+                        }
+                    } 
+                    // Try to parse as JSON array
+                    else if (response.trim().startsWith("[")) {
+                        JSONArray responseArray = new JSONArray(response);
+                        if (responseArray.length() > 0) {
+                            JSONObject firstItem = responseArray.optJSONObject(0);
+                            if (firstItem != null) {
+                                s3Url = firstItem.optString("pdf_download_link");
+                                if (s3Url == null || s3Url.isEmpty()) {
+                                    s3Url = firstItem.optString("pdf_link");
+                                }
+                                if (s3Url == null || s3Url.isEmpty()) {
+                                    s3Url = firstItem.optString("url");
+                                }
+                            }
+                        }
                     }
                     
                     if (s3Url != null && !s3Url.isEmpty()) {
@@ -475,8 +523,8 @@ public class DelhiveryUtil {
                         logger.info("Successfully downloaded label from S3 for waybill: {}", waybillNumber);
                         return pdfData;
                     } else {
-                        logger.error("No PDF link found in Delhivery response: {}", responseJson.toString(2));
-                        throw new RuntimeException("No PDF link in Delhivery response");
+                        logger.error("No PDF link found in Delhivery response. Full response: {}", response);
+                        throw new RuntimeException("No PDF link in Delhivery response - check logs for actual response structure");
                     }
                 } catch (org.json.JSONException e) {
                     logger.error("Failed to parse JSON response as label data. Response: {}", response, e);
