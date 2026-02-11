@@ -448,31 +448,44 @@ public class DelhiveryUtil {
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Authorization", "Token " + apiToken);
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Accept", "application/pdf");
+            conn.setRequestProperty("Accept", "application/json");  // FIXED: API returns JSON with S3 link, not raw PDF
 
             int responseCode = conn.getResponseCode();
             
             if (responseCode == 200) {
-                // Check if response is JSON with S3 link or direct PDF
-                String contentType = conn.getContentType();
-                if (contentType != null && contentType.contains("application/json")) {
-                    // Response contains S3 link - need to fetch from there
-                    String response = readResponse(conn);
+                // Response is JSON containing S3 PDF link
+                String response = readResponse(conn);
+                logger.info("Delhivery label response: {}", response);
+                
+                try {
                     JSONObject responseJson = new JSONObject(response);
-                    String s3Url = responseJson.optString("pdf_link", responseJson.optString("url"));
+                    
+                    // Extract S3 PDF link from response (multiple field name possibilities)
+                    String s3Url = responseJson.optString("pdf_link");
+                    if (s3Url == null || s3Url.isEmpty()) {
+                        s3Url = responseJson.optString("url");
+                    }
+                    if (s3Url == null || s3Url.isEmpty()) {
+                        s3Url = responseJson.optString("link");
+                    }
                     
                     if (s3Url != null && !s3Url.isEmpty()) {
-                        return downloadFromUrl(s3Url);
+                        logger.info("Found S3 PDF URL, downloading from: {}...", s3Url.substring(0, Math.min(50, s3Url.length())));
+                        byte[] pdfData = downloadFromUrl(s3Url);
+                        logger.info("Successfully downloaded label from S3 for waybill: {}", waybillNumber);
+                        return pdfData;
+                    } else {
+                        logger.error("No PDF link found in Delhivery response: {}", responseJson.toString(2));
+                        throw new RuntimeException("No PDF link in Delhivery response");
                     }
+                } catch (org.json.JSONException e) {
+                    logger.error("Failed to parse JSON response as label data. Response: {}", response, e);
+                    throw new RuntimeException("Delhivery returned invalid JSON: " + e.getMessage());
                 }
-                
-                byte[] labelData = conn.getInputStream().readAllBytes();
-                logger.info("Successfully downloaded label for waybill: {}", waybillNumber);
-                return labelData;
             } else {
                 String errorResponse = readResponse(conn);
                 logger.error("Failed to download label. Response code: {}, Response: {}", responseCode, errorResponse);
-                throw new RuntimeException("Label download failed with code: " + responseCode);
+                throw new RuntimeException("Label download failed with code: " + responseCode + " - " + errorResponse);
             }
         } catch (Exception e) {
             logger.error("Error downloading shipping label for waybill: {}", waybillNumber, e);
