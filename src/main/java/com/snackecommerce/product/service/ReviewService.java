@@ -11,6 +11,9 @@ import com.snackecommerce.product.repository.ReviewRepository;
 import com.snackecommerce.user.entity.User;
 import com.snackecommerce.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,10 @@ public class ReviewService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private CacheManager cacheManager;
+
+    @CacheEvict(value = "productReviews", allEntries = true, condition = "#productId != null")
     public ReviewResponse createReview(Long productId, ReviewRequest request, String userEmail) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
@@ -56,6 +63,7 @@ public class ReviewService {
         return mapToResponse(review);
     }
 
+    @Cacheable(value = "productReviews", key = "#productId + '_' + #page + '_' + #size")
     public Page<ReviewResponse> getProductReviews(Long productId, int page, int size) {
         // Verify product exists
         if (!productRepository.existsById(productId)) {
@@ -78,12 +86,18 @@ public class ReviewService {
             throw new RuntimeException("You can only edit your own reviews");
         }
 
+        Long productId = review.getProduct().getId();
+
         review.setRating(request.getRating());
         review.setTitle(request.getTitle());
         review.setText(request.getText());
         review.setUpdatedAt(LocalDateTime.now());
 
         review = reviewRepository.save(review);
+        
+        // Evict all review caches for this product
+        evictProductReviewsCache();
+        
         return mapToResponse(review);
     }
 
@@ -100,6 +114,15 @@ public class ReviewService {
         }
 
         reviewRepository.delete(review);
+        
+        // Evict all review caches for this product
+        evictProductReviewsCache();
+    }
+
+    private void evictProductReviewsCache() {
+        if (cacheManager.getCache("productReviews") != null) {
+            cacheManager.getCache("productReviews").clear();
+        }
     }
 
     private ReviewResponse mapToResponse(Review review) {

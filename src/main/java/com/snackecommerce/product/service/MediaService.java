@@ -11,6 +11,9 @@ import com.snackecommerce.product.repository.ProductImageRepository;
 import com.snackecommerce.product.repository.ProductRepository;
 import com.snackecommerce.product.repository.ProductVideoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +35,9 @@ public class MediaService {
     @Autowired
     private ProductVideoRepository productVideoRepository;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     private static final long MAX_IMAGE_SIZE = 10 * 1024 * 1024;  // 10 MB
     private static final long MAX_VIDEO_SIZE = 100 * 1024 * 1024;  // 100 MB
     private static final String[] ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"};
@@ -39,6 +45,7 @@ public class MediaService {
 
     // ==================== IMAGE OPERATIONS ====================
 
+    @CacheEvict(value = "productImages", key = "#productId")
     public ProductImageResponse uploadProductImage(Long productId, MultipartFile file, Boolean isPrimary) throws IOException {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
@@ -72,6 +79,7 @@ public class MediaService {
         return mapImageToResponse(image);
     }
 
+    @Cacheable(value = "productImages", key = "#productId")
     public List<ProductImageResponse> getProductImages(Long productId) {
         if (!productRepository.existsById(productId)) {
             throw new ProductNotFoundException("Product not found with ID: " + productId);
@@ -91,11 +99,21 @@ public class MediaService {
     public void deleteProductImage(Long imageId) {
         ProductImage image = productImageRepository.findById(imageId)
                 .orElseThrow(() -> new RuntimeException("Image not found with ID: " + imageId));
+        Long productId = image.getProduct().getId();
         productImageRepository.delete(image);
+        // Evict cache programmatically since we don't have productId in method signature
+        evictProductImagesCache(productId);
+    }
+
+    private void evictProductImagesCache(Long productId) {
+        if (cacheManager.getCache("productImages") != null) {
+            cacheManager.getCache("productImages").evict(productId);
+        }
     }
 
     // ==================== VIDEO OPERATIONS ====================
 
+    @CacheEvict(value = "productVideos", key = "#productId")
     public ProductVideoResponse uploadProductVideo(Long productId, MultipartFile file, String title, String description, Integer duration) throws IOException {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
@@ -124,6 +142,7 @@ public class MediaService {
         return mapVideoToResponse(video);
     }
 
+    @Cacheable(value = "productVideos", key = "#productId")
     public List<ProductVideoResponse> getProductVideos(Long productId) {
         if (!productRepository.existsById(productId)) {
             throw new ProductNotFoundException("Product not found with ID: " + productId);
@@ -143,7 +162,16 @@ public class MediaService {
     public void deleteProductVideo(Long videoId) {
         ProductVideo video = productVideoRepository.findById(videoId)
                 .orElseThrow(() -> new RuntimeException("Video not found with ID: " + videoId));
+        Long productId = video.getProduct().getId();
         productVideoRepository.delete(video);
+        // Evict cache programmatically since we don't have productId in method signature
+        evictProductVideosCache(productId);
+    }
+
+    private void evictProductVideosCache(Long productId) {
+        if (cacheManager.getCache("productVideos") != null) {
+            cacheManager.getCache("productVideos").evict(productId);
+        }
     }
 
     // ==================== HELPER METHODS ====================

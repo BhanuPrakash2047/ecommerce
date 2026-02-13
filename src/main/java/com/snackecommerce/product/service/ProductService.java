@@ -6,6 +6,9 @@ import com.snackecommerce.product.dto.ProductResponse;
 import com.snackecommerce.product.entity.Product;
 import com.snackecommerce.product.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -28,6 +31,11 @@ public class ProductService {
     @Autowired
     private ProductRepository productRepository;
 
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "availableProducts", allEntries = true),
+            @CacheEvict(value = "couponEligibleProducts", allEntries = true)
+    })
     public ProductResponse createProduct(ProductRequest request) {
         Product product = Product.builder()
                 .name(request.getName())
@@ -43,6 +51,12 @@ public class ProductService {
         return mapToResponse(product);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "availableProducts", allEntries = true),
+            @CacheEvict(value = "couponEligibleProducts", allEntries = true),
+            @CacheEvict(value = "product", key = "#productId")
+    })
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
@@ -72,6 +86,12 @@ public class ProductService {
         return mapToResponse(product);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "products", allEntries = true),
+            @CacheEvict(value = "availableProducts", allEntries = true),
+            @CacheEvict(value = "couponEligibleProducts", allEntries = true),
+            @CacheEvict(value = "product", key = "#productId")
+    })
     public void deleteProduct(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
@@ -79,24 +99,28 @@ public class ProductService {
         logger.info("Product deleted: {}", product.getName());
     }
 
+    @Cacheable(value = "product", key = "#productId")
     public ProductResponse getProduct(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + productId));
         return mapToResponse(product);
     }
 
+    @Cacheable(value = "products")
     public List<ProductResponse> getAllProducts() {
         return productRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "availableProducts")
     public List<ProductResponse> getAvailableProducts() {
         return productRepository.findByIsAvailableTrue().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "couponEligibleProducts")
     public List<ProductResponse> getCouponEligibleProducts() {
         return productRepository.findByIsEligibleForCouponTrue().stream()
                 .map(this::mapToResponse)

@@ -18,6 +18,9 @@ import com.snackecommerce.order.enums.OrderStatus;
 import com.snackecommerce.order.repository.OrderRepository;
 import com.snackecommerce.order.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -72,6 +75,10 @@ public class CartService {
 
     // ==================== ADD TO CART ====================
 
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public CartResponse addToCart(Long userId, AddToCartRequest request) {
         if (request.getQuantity() < 1 || request.getQuantity() > 100) {
             throw new InvalidCartItemException("Quantity must be between 1 and 100");
@@ -131,6 +138,10 @@ public class CartService {
 
     // ==================== REMOVE FROM CART ====================
 
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public CartResponse removeFromCart(Long userId, Long cartItemId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
@@ -156,6 +167,10 @@ public class CartService {
 
     // ==================== UPDATE QUANTITY ====================
 
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public CartResponse updateQuantity(Long userId, Long cartItemId, Integer newQuantity) {
         if (newQuantity < 1 || newQuantity > 999) {
             throw new InvalidCartItemException("Quantity must be between 1 and 999");
@@ -199,6 +214,7 @@ public class CartService {
 
     // ==================== VIEW CART ====================
 
+    @Cacheable(value = "cart", key = "#userId")
     public CartResponse getCart(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
@@ -220,6 +236,7 @@ public class CartService {
 
     // ==================== GET ELIGIBLE COUPONS ====================
 
+    @Cacheable(value = "eligibleCoupons", key = "#userId")
     public EligibleCouponsResponse getEligibleCoupons(Long userId) {
         // Step 1: Fetch cart
         Cart cart = cartRepository.findByUserId(userId)
@@ -333,6 +350,10 @@ public class CartService {
 
     // ==================== APPLY COUPON ====================
 
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public CartResponse applyCoupon(Long userId, ApplyCouponRequest request) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
@@ -367,6 +388,10 @@ public class CartService {
 
     // ==================== REMOVE COUPON ====================
 
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public CartResponse removeCoupon(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user: " + userId));
@@ -500,6 +525,10 @@ public class CartService {
      * @param receiverEmail Receiver email
      * @return Created order
      */
+    @Caching(evict = {
+            @CacheEvict(value = "cart", key = "#userId"),
+            @CacheEvict(value = "eligibleCoupons", key = "#userId")
+    })
     public Order proceedToCheckout(Long userId, Long addressId, String receiverName, 
                                    String receiverPhone, String receiverEmail) throws Exception {
         Cart cart = cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE)
