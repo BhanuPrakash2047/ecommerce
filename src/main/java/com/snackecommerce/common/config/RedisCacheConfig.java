@@ -1,5 +1,7 @@
 package com.snackecommerce.common.config;
 
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SslOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -9,6 +11,7 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -21,6 +24,7 @@ import java.util.Map;
 /**
  * Redis Cache Configuration
  * Uses existing Redis (Upstash) credentials for caching with TTL safety guards
+ * SSL enabled for Upstash connection
  */
 @Configuration
 @EnableCaching
@@ -44,11 +48,19 @@ public class RedisCacheConfig {
 
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
-        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
-        config.setHostName(redisHost);
-        config.setPort(redisPort);
-        config.setPassword(redisPassword);
-        return new LettuceConnectionFactory(config);
+        RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
+        redisConfig.setHostName(redisHost);
+        redisConfig.setPort(redisPort);
+        redisConfig.setPassword(redisPassword);
+
+        // Enable SSL for Upstash Redis connection
+        LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
+                .useSsl()
+                .disablePeerVerification()  // Upstash uses self-signed certs
+                .commandTimeout(Duration.ofSeconds(60))
+                .build();
+
+        return new LettuceConnectionFactory(redisConfig, clientConfig);
     }
 
     @Bean
