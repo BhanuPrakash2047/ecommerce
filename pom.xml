@@ -47,6 +47,12 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- Jackson Java 8 Date/Time Support for Redis Serialization -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Spring Security with JWT -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
