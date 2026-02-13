@@ -1,7 +1,5 @@
 package com.snackecommerce.common.config;
 
-import io.lettuce.core.ClientOptions;
-import io.lettuce.core.SslOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -55,9 +53,10 @@ public class RedisCacheConfig {
 
         // Enable SSL for Upstash Redis connection
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
+                .commandTimeout(Duration.ofSeconds(60))
                 .useSsl()
                 .disablePeerVerification()  // Upstash uses self-signed certs
-                .commandTimeout(Duration.ofSeconds(60))
+                .and()
                 .build();
 
         return new LettuceConnectionFactory(redisConfig, clientConfig);
