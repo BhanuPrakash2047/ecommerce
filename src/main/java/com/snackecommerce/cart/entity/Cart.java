@@ -8,7 +8,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "carts")
+@Table(name = "carts", indexes = {
+        @Index(name = "idx_user_status", columnList = "user_id,status")
+})
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class Cart {
