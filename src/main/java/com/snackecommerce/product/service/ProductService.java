@@ -55,7 +55,9 @@ public class ProductService {
             @CacheEvict(value = "products", allEntries = true),
             @CacheEvict(value = "availableProducts", allEntries = true),
             @CacheEvict(value = "couponEligibleProducts", allEntries = true),
-            @CacheEvict(value = "product", key = "#productId")
+            @CacheEvict(value = "product", key = "#productId"),
+            @CacheEvict(value = "cart", allEntries = true),
+            @CacheEvict(value = "eligibleCoupons", allEntries = true)
     })
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
         Product product = productRepository.findById(productId)
@@ -90,7 +92,13 @@ public class ProductService {
             @CacheEvict(value = "products", allEntries = true),
             @CacheEvict(value = "availableProducts", allEntries = true),
             @CacheEvict(value = "couponEligibleProducts", allEntries = true),
-            @CacheEvict(value = "product", key = "#productId")
+            @CacheEvict(value = "product", key = "#productId"),
+            @CacheEvict(value = "cart", allEntries = true),
+            @CacheEvict(value = "eligibleCoupons", allEntries = true),
+            @CacheEvict(value = "productImages", key = "#productId"),
+            @CacheEvict(value = "productVideos", key = "#productId"),
+            @CacheEvict(value = "productReviews", allEntries = true),
+            @CacheEvict(value = "productFAQs", key = "#productId")
     })
     public void deleteProduct(Long productId) {
         Product product = productRepository.findById(productId)
