@@ -6,6 +6,7 @@ import com.snackecommerce.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -111,7 +112,8 @@ public class NotificationController {
     @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> markAsRead(@PathVariable Long notificationId) {
         try {
-            Notification notification = notificationService.markAsRead(notificationId);
+            Long userId = getCurrentUserId();
+            Notification notification = notificationService.markAsRead(notificationId, userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
@@ -119,6 +121,11 @@ public class NotificationController {
             response.put("notification", notification);
             
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
         } catch (Exception e) {
             Map<String, Object> error = new HashMap<>();
             error.put("status", "error");
@@ -159,13 +166,19 @@ public class NotificationController {
     @PreAuthorize("hasRole('USER') || hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> deleteNotification(@PathVariable Long notificationId) {
         try {
-            notificationService.deleteNotification(notificationId);
+            Long userId = getCurrentUserId();
+            notificationService.deleteNotification(notificationId, userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
             response.put("message", "Notification deleted");
             
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
         } catch (Exception e) {
             Map<String, Object> error = new HashMap<>();
             error.put("status", "error");

@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
@@ -207,8 +208,7 @@ public class CartController {
             String receiverEmail = "";
 
             // Validate address exists
-            Address address = addressRepository.findById(addressId)
-                    .orElse(null);
+            Address address = addressService.requireOwnedAddress(addressId, userId);
             if (address == null) {
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Address not found");
@@ -285,6 +285,10 @@ public class CartController {
             response.put("message", "Order created. Ready for payment.");
             
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (AccessDeniedException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
         } catch (RuntimeException e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());

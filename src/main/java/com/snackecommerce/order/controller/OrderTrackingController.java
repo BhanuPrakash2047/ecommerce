@@ -14,6 +14,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -60,10 +61,12 @@ public class OrderTrackingController {
      */
     @GetMapping("/{orderId}/track")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<TrackingResponse> trackOrder(@PathVariable Long orderId) {
+    public ResponseEntity<TrackingResponse> trackOrder(@PathVariable Long orderId, Principal principal) {
         try {
-            TrackingResponse tracking = deliveryService.trackOrder(orderId);
+            TrackingResponse tracking = orderService.trackOrder(orderId, principal.getName());
             return ResponseEntity.ok(tracking);
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
