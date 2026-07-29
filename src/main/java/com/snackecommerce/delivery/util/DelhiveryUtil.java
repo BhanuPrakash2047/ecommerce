@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -70,10 +71,11 @@ public class DelhiveryUtil {
             String country,
             String landmark,
             String phone,
-            String customerName) {
+            String customerName,
+            BigDecimal total) {
         
         return buildShipmentPayload(orderNumber, addressLine, city, pincode, state, 
-                country, landmark, phone, customerName, "Prepaid", null, 0, null);
+                country, landmark, phone, customerName, "Prepaid", null, total, "Thekua");
     }
 
     /**
@@ -106,7 +108,7 @@ public class DelhiveryUtil {
             String customerName,
             String paymentMode,
             String shippingMode,
-            double codAmount,
+            BigDecimal totalAmount,
             String productDesc) {
         
         // Build the shipment object with Delhivery's expected field names

@@ -81,7 +81,8 @@ public class DeliveryService {
                 address.getCountry(),
                 null,  // landmark (not in Address entity)
                 address.getPhoneNumber(),
-                address.getFullName()
+                address.getFullName(),
+                order.getTotalAmountBigDecimal()
         );
 
         try {
@@ -173,7 +174,8 @@ public class DeliveryService {
                     address.getCountry(),
                     null,  // landmark (not in Address entity)
                     address.getPhoneNumber(),
-                    address.getFullName()
+                    address.getFullName(),
+                    order.getTotalAmountBigDecimal()
             );
 
             JSONObject response = delhiveryUtil.createShipment(shipmentRequest);
