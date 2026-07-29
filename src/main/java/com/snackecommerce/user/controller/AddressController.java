@@ -8,6 +8,7 @@ import com.snackecommerce.user.service.AddressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -74,22 +75,17 @@ public class AddressController {
     public ResponseEntity<?> getAddressById(@PathVariable Long addressId) {
         try {
             Long userId = getCurrentUserId();
-            
-            Address address = addressRepository.findById(addressId)
-                    .orElse(null);
-            
-            if (address == null) {
+                Address address = addressService.requireOwnedAddress(addressId, userId);
+
+                if (address == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Address not found"));
             }
             
-            // Verify ownership - ensure user can only fetch their own addresses
-            if (!address.getUserId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "You don't have permission to access this address"));
-            }
-            
             return ResponseEntity.ok(Map.of("data", address));
+            } catch (AccessDeniedException e) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to fetch address: " + e.getMessage()));
@@ -165,18 +161,11 @@ public class AddressController {
         try {
             Long userId = getCurrentUserId();
 
-            Address address = addressRepository.findById(addressId)
-                    .orElse(null);
+                Address address = addressService.requireOwnedAddress(addressId, userId);
 
-            if (address == null) {
+                if (address == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Address not found"));
-            }
-
-            // Verify ownership
-            if (!address.getUserId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "You don't have permission to update this address"));
             }
 
             // Validate required fields
@@ -229,6 +218,9 @@ public class AddressController {
 
             Address updatedAddress = addressRepository.save(address);
             return ResponseEntity.ok(updatedAddress);
+    } catch (AccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to update address: " + e.getMessage()));
@@ -245,22 +237,18 @@ public class AddressController {
         try {
             Long userId = getCurrentUserId();
 
-            Address address = addressRepository.findById(addressId)
-                    .orElse(null);
+                Address address = addressService.requireOwnedAddress(addressId, userId);
 
-            if (address == null) {
+                if (address == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Address not found"));
             }
 
-            // Verify ownership
-            if (!address.getUserId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "You don't have permission to delete this address"));
-            }
-
             addressRepository.delete(address);
             return ResponseEntity.ok(Map.of("message", "Address deleted successfully"));
+            } catch (AccessDeniedException e) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to delete address: " + e.getMessage()));
@@ -277,18 +265,11 @@ public class AddressController {
         try {
             Long userId = getCurrentUserId();
 
-            Address address = addressRepository.findById(addressId)
-                    .orElse(null);
+                Address address = addressService.requireOwnedAddress(addressId, userId);
 
-            if (address == null) {
+                if (address == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "Address not found"));
-            }
-
-            // Verify ownership
-            if (!address.getUserId().equals(userId)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "You don't have permission to modify this address"));
             }
 
             // Remove default from all other addresses
@@ -303,6 +284,9 @@ public class AddressController {
             Address updatedAddress = addressRepository.save(address);
 
             return ResponseEntity.ok(updatedAddress);
+    } catch (AccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to set default address: " + e.getMessage()));
@@ -327,12 +311,14 @@ public class AddressController {
             PincodeAvailabilityResponse response;
             
             if (addressId != null) {
-                // If addressId provided, update the specific Address entity
-                Address address = addressRepository.findById(addressId).orElse(null);
-                if (address == null) {
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error", "Address not found"));
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                            .body(Map.of("error", "Authentication required to check pincode for an address"));
                 }
+
+                Long userId = getCurrentUserId();
+                Address address = addressService.requireOwnedAddress(addressId, userId);
                 
                 response = addressService.checkPincodeReachability(address);
             } else {
@@ -341,6 +327,9 @@ public class AddressController {
             }
             
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Pincode check failed: " + e.getMessage()));

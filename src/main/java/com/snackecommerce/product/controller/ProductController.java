@@ -186,6 +186,7 @@ public class ProductController {
      * @return Paginated reviews or 404 if product not found
      */
     @GetMapping("/{productId}/reviews")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<Page<ReviewResponse>> getProductReviews(
             @PathVariable Long productId,
             @RequestParam(defaultValue = "0") int page,
@@ -259,6 +260,7 @@ public class ProductController {
      * @return List of FAQs or 404 if product not found
      */
     @GetMapping("/{productId}/faqs")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<?> getProductFAQs(@PathVariable Long productId) {
         var faqs = faqService.getProductFAQs(productId);
         return ResponseEntity.ok(faqs);

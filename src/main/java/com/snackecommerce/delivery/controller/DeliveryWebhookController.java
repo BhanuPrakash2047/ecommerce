@@ -4,6 +4,7 @@ import com.snackecommerce.delivery.service.DeliveryService;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ public class DeliveryWebhookController {
      * }
      */
     @PostMapping("/shipment-update")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> handleShipmentUpdate(@RequestBody String payload) {
         try {
             logger.info("Received Delhivery webhook: {}", payload);

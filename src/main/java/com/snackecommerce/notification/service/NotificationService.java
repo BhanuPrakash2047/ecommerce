@@ -4,6 +4,7 @@ import com.snackecommerce.notification.entity.Notification;
 import com.snackecommerce.notification.enums.NotificationType;
 import com.snackecommerce.notification.repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -201,6 +202,13 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
+    public Notification markAsRead(Long notificationId, Long userId) {
+        Notification notification = requireOwnedNotification(notificationId, userId);
+        notification.setIsRead(true);
+        notification.setReadAt(LocalDateTime.now());
+        return notificationRepository.save(notification);
+    }
+
     /**
      * Mark all unread notifications as read
      */
@@ -225,6 +233,12 @@ public class NotificationService {
         logger.info("Notification deleted: {}", notificationId);
     }
 
+    public void deleteNotification(Long notificationId, Long userId) {
+        requireOwnedNotification(notificationId, userId);
+        notificationRepository.deleteById(notificationId);
+        logger.info("Notification deleted: {}", notificationId);
+    }
+
     /**
      * Delete all notifications for a user
      */
@@ -232,5 +246,16 @@ public class NotificationService {
         List<Notification> userNotifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
         notificationRepository.deleteAll(userNotifications);
         logger.info("Deleted {} notifications for user {}", userNotifications.size(), userId);
+    }
+
+    private Notification requireOwnedNotification(Long notificationId, Long userId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Notification not found: " + notificationId));
+
+        if (userId == null || !notification.getUserId().equals(userId)) {
+            throw new AccessDeniedException("You don't have permission to modify this notification");
+        }
+
+        return notification;
     }
 }

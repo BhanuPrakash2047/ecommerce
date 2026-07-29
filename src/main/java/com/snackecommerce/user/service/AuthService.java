@@ -72,7 +72,7 @@ public class AuthService {
                 .phone(registerRequest.getPhone())
                 .password(passwordEncoder.encode(registerRequest.getPassword()))
                 .authProvider(AuthProvider.LOCAL)
-                .role(UserRole.ADMIN)
+                .role(UserRole.USER)
                 .active(true)
                 .createdAt(LocalDateTime.now())
                 .build();

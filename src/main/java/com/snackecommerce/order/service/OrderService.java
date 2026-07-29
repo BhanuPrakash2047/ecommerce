@@ -1,7 +1,8 @@
 package com.snackecommerce.order.service;
 
-import com.snackecommerce.cart.entity.Cart;
 import com.snackecommerce.common.exception.OrderNotFoundException;
+import com.snackecommerce.delivery.dto.TrackingResponse;
+import com.snackecommerce.delivery.service.DeliveryService;
 import com.snackecommerce.order.dto.AdminOrderStatsRequest;
 import com.snackecommerce.order.dto.AdminOrderStatsResponse;
 import com.snackecommerce.order.dto.OrderResponse;
@@ -19,6 +20,7 @@ import com.snackecommerce.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -50,6 +52,9 @@ public class OrderService {
     @Autowired
     private CouponRepository couponRepository;
 
+        @Autowired
+        private DeliveryService deliveryService;
+
 
 
     /**
@@ -76,9 +81,18 @@ public class OrderService {
      */
     public OrderResponse getOrderDetails(Long orderId, String userEmail) {
         Order order = getOrderById(orderId);
-        // TODO: Verify user owns this order
+                ensureOrderAccess(order, userEmail);
         return mapToResponse(order);
     }
+
+        /**
+         * Track order delivery status for the authenticated user.
+         */
+        public TrackingResponse trackOrder(Long orderId, String userEmail) throws Exception {
+                Order order = getOrderById(orderId);
+                ensureOrderAccess(order, userEmail);
+                return deliveryService.trackOrder(orderId);
+        }
 
 
 
@@ -127,7 +141,7 @@ public class OrderService {
         long paymentDone = allOrders.stream()
                 .filter(o -> o.getStatus().equals(OrderStatus.PAYMENT_PENDING))
                 .count();
-        analytics.put("paymentDone", pendingDeliveries);
+        analytics.put("paymentDone", paymentDone);
         
         // Delivered today
         LocalDateTime today = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
@@ -138,6 +152,19 @@ public class OrderService {
         
         return analytics;
     }
+
+        private void ensureOrderAccess(Order order, String userEmail) {
+                if (userEmail == null || userEmail.isBlank()) {
+                        return;
+                }
+
+                User user = userRepository.findByEmail(userEmail)
+                                .orElseThrow(() -> new OrderNotFoundException("User not found: " + userEmail));
+
+                if (!order.getUserId().equals(user.getId())) {
+                        throw new AccessDeniedException("You don't have permission to access this order");
+                }
+        }
 
     /**
      * Get comprehensive admin order statistics with optional filters

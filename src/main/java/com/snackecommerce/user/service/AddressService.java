@@ -5,6 +5,7 @@ import com.snackecommerce.delivery.service.DeliveryService;
 import com.snackecommerce.user.entity.Address;
 import com.snackecommerce.user.repository.AddressRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -109,5 +110,19 @@ public class AddressService {
                     .status("NOT_SERVICEABLE")
                     .build();
         }
+    }
+
+    /**
+     * Load an address only if it belongs to the authenticated user.
+     */
+    public Address requireOwnedAddress(Long addressId, Long userId) {
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new RuntimeException("Address not found: " + addressId));
+
+        if (userId == null || !address.getUserId().equals(userId)) {
+            throw new AccessDeniedException("You don't have permission to access this address");
+        }
+
+        return address;
     }
 }
